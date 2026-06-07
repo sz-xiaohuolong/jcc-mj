@@ -21,11 +21,12 @@ import { sortTiles } from "../utils/tileSort";
 
 interface GameStore {
   game: GameState;
-  view: "home" | "game" | "rules";
+  view: "home" | "game" | "rules" | "online-home" | "online-lobby" | "online-game";
   seed: number;
   startGame: () => void;
   goHome: () => void;
   openRules: () => void;
+  openOnlineHome: () => void;
   buyFromShop: (instanceId: string) => void;
   refreshShop: () => void;
   toggleLockShop: () => void;
@@ -83,6 +84,10 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   openRules() {
     set({ view: "rules" });
+  },
+
+  openOnlineHome() {
+    set({ view: "online-home" });
   },
 
   buyFromShop(instanceId) {

@@ -19,6 +19,18 @@ npm install
 npm run dev
 ```
 
+`npm run dev` 会同时启动：
+
+- 前端：`http://localhost:5173`
+- 后端：`http://localhost:8787`
+
+也可以分别启动：
+
+```bash
+npm run dev:client
+npm run dev:server
+```
+
 测试与构建：
 
 ```bash
@@ -37,6 +49,7 @@ npm run build
 
 ## 当前功能
 
+- 单机模式和联机模式入口。
 - 基础胡牌：4 组面子 + 1 组雀头。
 - 扩展胡牌：七对子、碰碰胡、清一色。
 - 商店刷新 5 张牌，按等级概率抽取费用。
@@ -46,6 +59,17 @@ npm run build
 - 5 个原创城邦。
 - 规则评分 AI：购买高价值牌、必要时刷新、超限弃牌。
 - 首页、游戏主界面、规则页、海克斯弹窗、结算弹窗。
+- 联机 MVP：
+  - 创建 / 加入房间
+  - 房间号复制
+  - 玩家准备
+  - 房主开始
+  - 不足 4 人 AI 补位
+  - 服务端权威状态
+  - 每名玩家独立私有商店 / 手牌视图
+  - Socket.IO ack 错误返回
+  - 60 秒重连窗口
+  - 服务端倒计时广播和超时结算
 
 ## 目录结构
 
@@ -58,6 +82,13 @@ src/
 ├── pages/         # 页面
 ├── utils/         # 随机数、排序等工具
 └── tests/         # Vitest 测试
+server/
+├── src/managers/  # Room/Game/Connection 管理器
+├── src/socket/    # Socket.IO 事件处理
+└── src/tests/     # 服务端测试
+shared/
+├── protocol/      # Socket 事件名和事件类型
+└── types/         # 网络视图和 payload 类型
 ```
 
 ## 参考与设计取舍
@@ -74,3 +105,4 @@ src/
 - 更多结算日志解释和数值调平。
 - 图鉴页独立化。
 - 吃、碰、杠和更多番型。
+- Redis / 数据库 / 账号系统 / 排行榜。

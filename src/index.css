@@ -495,6 +495,80 @@ button {
   background: rgba(167, 120, 255, 0.15);
 }
 
+.online-entry {
+  display: grid;
+  align-content: center;
+  gap: 20px;
+}
+
+.online-card,
+.lobby-card {
+  width: min(960px, 100%);
+  margin: 0 auto;
+  border-radius: 8px;
+  border: 1px solid rgba(52, 211, 181, 0.24);
+  background: linear-gradient(160deg, rgba(17, 28, 42, 0.9), rgba(12, 15, 24, 0.88));
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.36);
+  padding: 24px;
+}
+
+.online-card h1,
+.lobby-card h1 {
+  margin: 8px 0 14px;
+  font-family: "Cinzel", "Noto Sans SC", serif;
+  color: #fff9e8;
+  font-size: clamp(34px, 6vw, 76px);
+}
+
+.field-label,
+.join-box {
+  display: grid;
+  gap: 8px;
+  color: #cbd6e2;
+  font-size: 13px;
+}
+
+.field-label input,
+.join-box input {
+  min-height: 44px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 0 12px;
+  outline: none;
+}
+
+.field-label input:focus,
+.join-box input:focus {
+  border-color: rgba(52, 211, 181, 0.65);
+}
+
+.online-actions {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: auto minmax(160px, 260px) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.lobby-list {
+  display: grid;
+  gap: 10px;
+}
+
+.lobby-player {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 12px;
+  align-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  padding: 12px;
+  color: #d8e2ed;
+}
+
 @media (max-width: 1100px) {
   .game-grid {
     grid-template-columns: 1fr;
@@ -517,7 +591,8 @@ button {
   }
 
   .shop-grid,
-  .rules-grid {
+  .rules-grid,
+  .online-actions {
     grid-template-columns: 1fr;
   }
 

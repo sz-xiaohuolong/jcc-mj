@@ -1,9 +1,10 @@
-import { BookOpen, LibraryBig, Play } from "lucide-react";
+import { BookOpen, LibraryBig, Play, RadioTower } from "lucide-react";
 import { useGameStore } from "../store/gameStore";
 
 export function HomePage() {
   const startGame = useGameStore((state) => state.startGame);
   const openRules = useGameStore((state) => state.openRules);
+  const openOnlineHome = useGameStore((state) => state.openOnlineHome);
 
   return (
     <main className="home-screen">
@@ -19,7 +20,11 @@ export function HomePage() {
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <button className="primary-button" type="button" onClick={startGame}>
             <Play size={18} />
-            开始游戏
+            单机模式
+          </button>
+          <button className="primary-button" type="button" onClick={openOnlineHome}>
+            <RadioTower size={18} />
+            联机模式
           </button>
           <button className="ghost-button" type="button" onClick={openRules}>
             <BookOpen size={18} />
