@@ -6,18 +6,25 @@ export function shouldOfferAugment(round: number): boolean {
   return [2, 5, 8].includes(round);
 }
 
-export function createAugmentChoices(rng: RandomSource, count = 3): AugmentDefinition[] {
-  return shuffle(augmentDefinitions, rng).slice(0, count);
+export function createAugmentChoices(rng: RandomSource, count = 3, excludedAugmentIds: string[] = []): AugmentDefinition[] {
+  const excluded = new Set(excludedAugmentIds);
+  return shuffle(
+    augmentDefinitions.filter((augment) => !excluded.has(augment.id)),
+    rng
+  ).slice(0, count);
 }
 
 export function chooseAugmentForAI(player: PlayerState, choices: AugmentDefinition[]): AugmentDefinition {
   const traitCount = player.activeTraits.filter((trait) => trait.tier > 0).length;
+  const ownedAugmentIds = new Set(player.augments.map((augment) => augment.id));
+  const availableChoices = choices.filter((augment) => !ownedAugmentIds.has(augment.id));
+  const selectableChoices = availableChoices.length > 0 ? availableChoices : choices;
 
   return (
-    choices.find((augment) => traitCount >= 2 && augment.tags.includes("trait")) ??
-    choices.find((augment) => player.gold < 8 && augment.tags.includes("economy")) ??
-    choices.find((augment) => augment.tags.includes("damage")) ??
-    choices[0]
+    selectableChoices.find((augment) => traitCount >= 2 && augment.tags.includes("trait")) ??
+    selectableChoices.find((augment) => player.gold < 8 && augment.tags.includes("economy")) ??
+    selectableChoices.find((augment) => augment.tags.includes("damage")) ??
+    selectableChoices[0]
   );
 }
 

@@ -311,13 +311,20 @@ export function endRound(game: GameState, rng: RandomSource): GameState {
     return baseNextGame;
   }
 
-  const nextWithShop = refreshGameShop(baseNextGame, rng);
+  const currentPlayer = baseNextGame.players.find((player) => player.id === baseNextGame.currentPlayerId);
+  const nextWithShop = currentPlayer?.lockedShop ? baseNextGame : refreshGameShop(baseNextGame, rng);
 
   if (shouldOfferAugment(nextWithShop.round)) {
+    const currentPlayerWithAugments = nextWithShop.players.find((player) => player.id === nextWithShop.currentPlayerId);
+
     return {
       ...nextWithShop,
       phase: "augment_select",
-      augmentChoices: createAugmentChoices(rng)
+      augmentChoices: createAugmentChoices(
+        rng,
+        3,
+        currentPlayerWithAugments?.augments.map((augment) => augment.id) ?? []
+      )
     };
   }
 

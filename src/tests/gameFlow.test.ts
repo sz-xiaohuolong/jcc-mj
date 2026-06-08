@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { augmentDefinitions } from "../data/augments";
 import { createInitialGame, discardTile, endRound, levelUpPlayer, sellTile } from "../engine/gameEngine";
 import type { GameState, TileInstance } from "../types";
 import { createSeededRandom } from "../utils/random";
@@ -48,6 +49,37 @@ describe("game flow", () => {
 
     expect(player?.level).toBe(2);
     expect(player?.gold).toBeLessThan(game.players[0].gold);
+  });
+
+  it("keeps the shop unchanged across round end when the player locks it", () => {
+    const game = createInitialGame({ rng: createSeededRandom(44) });
+    const lockedGame = {
+      ...game,
+      players: game.players.map((player) => (player.id === "player" ? { ...player, lockedShop: true } : player))
+    };
+    const beforeShopIds = lockedGame.shop.map((tile) => tile.instanceId);
+
+    const advanced = endRound(lockedGame, createSeededRandom(45));
+
+    expect(advanced.players.find((player) => player.id === "player")?.lockedShop).toBe(true);
+    expect(advanced.shop.map((tile) => tile.instanceId)).toEqual(beforeShopIds);
+  });
+
+  it("does not offer already selected augments again", () => {
+    const game = createInitialGame({ rng: createSeededRandom(46) });
+    const goldenTicket = augmentDefinitions.find((augment) => augment.id === "golden-ticket");
+    if (!goldenTicket) throw new Error("Missing golden-ticket augment");
+    const gameWithAugment = {
+      ...game,
+      round: 1,
+      players: game.players.map((player) => (player.id === "player" ? { ...player, augments: [goldenTicket] } : player))
+    };
+
+    const advanced = endRound(gameWithAugment, createSeededRandom(47));
+
+    expect(advanced.phase).toBe("augment_select");
+    expect(advanced.augmentChoices).toHaveLength(3);
+    expect(advanced.augmentChoices.map((augment) => augment.id)).not.toContain("golden-ticket");
   });
 
   it("resolves simultaneous winning hands by winning combat score", () => {

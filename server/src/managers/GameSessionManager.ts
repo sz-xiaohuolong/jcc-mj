@@ -94,7 +94,16 @@ export class GameSessionManager {
       shop: [],
       tilePool: toTileInstances(pool)
     };
-    const playerAugmentChoices = Object.fromEntries(players.map((player, index) => [player.id, createAugmentChoices(rng(seed + 900 + index))]));
+    const playerAugmentChoices = Object.fromEntries(
+      players.map((player, index) => [
+        player.id,
+        createAugmentChoices(
+          rng(seed + 900 + index),
+          3,
+          player.augments.map((augment) => augment.id)
+        )
+      ])
+    );
     const session: GameSession = {
       roomId: room.id,
       game,
@@ -406,7 +415,16 @@ export class GameSessionManager {
     if (!session) return;
     session.game = { ...session.game, phase };
     if (phase === "augment_select") {
-      session.playerAugmentChoices = Object.fromEntries(session.game.players.map((player, index) => [player.id, createAugmentChoices(rng(session.rngSeed + 700 + index))]));
+      session.playerAugmentChoices = Object.fromEntries(
+        session.game.players.map((player, index) => [
+          player.id,
+          createAugmentChoices(
+            rng(session.rngSeed + 700 + index),
+            3,
+            player.augments.map((augment) => augment.id)
+          )
+        ])
+      );
     }
   }
 
@@ -464,7 +482,16 @@ export class GameSessionManager {
     session.endedTurnPlayerIds = [];
     session.deadlineAt = Date.now() + 60_000;
     if (session.game.phase === "augment_select") {
-      session.playerAugmentChoices = Object.fromEntries(session.game.players.map((player, index) => [player.id, createAugmentChoices(rng(session.rngSeed + settled.round + index))]));
+      session.playerAugmentChoices = Object.fromEntries(
+        session.game.players.map((player, index) => [
+          player.id,
+          createAugmentChoices(
+            rng(session.rngSeed + settled.round + index),
+            3,
+            player.augments.map((augment) => augment.id)
+          )
+        ])
+      );
       for (const ai of session.game.players.filter((player) => player.isAI)) {
         const choice = chooseAugmentForAI(ai, session.playerAugmentChoices[ai.id] ?? augmentDefinitions.slice(0, 3));
         session.game = {

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { tileDefinitions } from "../data/tiles";
 import { applyImmediateAugmentEffect } from "../engine/augmentEffects";
-import { chooseAugmentForAI, getRefreshCostModifier } from "../engine/augmentEngine";
+import { chooseAugmentForAI, createAugmentChoices, getRefreshCostModifier } from "../engine/augmentEngine";
 import { runAITurn } from "../engine/aiEngine";
 import {
   buyTile,
@@ -203,7 +203,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
           }
 
           if (player.isAI) {
-            const aiAugment = chooseAugmentForAI(player, state.game.augmentChoices);
+            const aiChoices = createAugmentChoices(
+              createSeededRandom(state.seed + state.game.round + player.id.length + 900),
+              3,
+              player.augments.map((item) => item.id)
+            );
+            const aiAugment = chooseAugmentForAI(player, aiChoices);
             selectedAugments.set(player.id, aiAugment);
             return { ...player, augments: [...player.augments, aiAugment] };
           }
