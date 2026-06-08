@@ -14,7 +14,8 @@ export function calculateActiveTraits(tiles: TileDefinition[]): ActiveTrait[] {
     .map((trait) => {
       const count = counts.get(trait.id) ?? 0;
       const matchedThresholds = trait.thresholds.filter((threshold) => count >= threshold);
-      const threshold = matchedThresholds.at(-1) ?? 0;
+      const nextThreshold = trait.thresholds.find((threshold) => count < threshold);
+      const threshold = nextThreshold ?? matchedThresholds.at(-1) ?? trait.thresholds[0] ?? count;
 
       return {
         id: trait.id,
@@ -31,7 +32,7 @@ export function calculateActiveTraits(tiles: TileDefinition[]): ActiveTrait[] {
 export function getRefreshDiscount(activeTraits: ActiveTrait[], isFirstRefresh: boolean): number {
   const mysticTier = activeTraits.find((trait) => trait.id === "mystic")?.tier ?? 0;
   const swiftTier = activeTraits.find((trait) => trait.id === "swiftblade")?.tier ?? 0;
-  const mysticDiscount = mysticTier >= 2 ? 1 : 0;
+  const mysticDiscount = mysticTier >= 2 || (mysticTier >= 1 && isFirstRefresh) ? 1 : 0;
   const swiftDiscount = isFirstRefresh && swiftTier > 0 ? 1 : 0;
 
   return mysticDiscount + swiftDiscount;

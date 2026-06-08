@@ -1,12 +1,12 @@
 import type { TileDefinition, TraitId } from "../types";
 
 const numberedTraitMap: Record<number, TraitId[]> = {
-  1: ["spritekin", "shieldwall"],
-  2: ["bloodblade", "spritekin"],
-  3: ["bloodblade", "mystic"],
-  4: ["mystic", "shieldwall"],
-  5: ["starvault", "mystic"],
-  6: ["swiftblade", "bloodblade"],
+  1: [],
+  2: ["spritekin"],
+  3: ["bloodblade"],
+  4: ["mystic"],
+  5: ["starvault"],
+  6: ["swiftblade"],
   7: ["swiftblade", "starvault"],
   8: ["starvault", "shieldwall"],
   9: ["bloodblade", "swiftblade"]
@@ -54,7 +54,7 @@ export const tileDefinitions: TileDefinition[] = [
     name: "东风",
     suit: "wind",
     cost: 2,
-    traits: ["shieldwall", "mystic"],
+    traits: ["shieldwall"],
     maxCopies: 4,
     rarity: "rare"
   },
@@ -63,7 +63,7 @@ export const tileDefinitions: TileDefinition[] = [
     name: "南风",
     suit: "wind",
     cost: 2,
-    traits: ["spritekin", "swiftblade"],
+    traits: ["swiftblade"],
     maxCopies: 4,
     rarity: "rare"
   },
@@ -72,7 +72,7 @@ export const tileDefinitions: TileDefinition[] = [
     name: "西风",
     suit: "wind",
     cost: 3,
-    traits: ["bloodblade", "shieldwall"],
+    traits: ["shieldwall"],
     maxCopies: 4,
     rarity: "epic"
   },
@@ -81,7 +81,7 @@ export const tileDefinitions: TileDefinition[] = [
     name: "北风",
     suit: "wind",
     cost: 3,
-    traits: ["starvault", "mystic"],
+    traits: ["starvault"],
     maxCopies: 4,
     rarity: "epic"
   },

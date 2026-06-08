@@ -3,8 +3,10 @@ import { tileDefinitions } from "../data/tiles";
 import { getLevelUpCost } from "../store/gameStore";
 import { useOnlineStore } from "../store/onlineStore";
 import type { TileInstance } from "../types";
+import { ArenaBoard } from "../components/ArenaBoard";
 import { AugmentPanel } from "../components/AugmentPanel";
-import { CityBanner } from "../components/CityBanner";
+import { GameTopbar } from "../components/GameTopbar";
+import { PlayerStatus } from "../components/PlayerStatus";
 import { TileCard } from "../components/TileCard";
 import { TraitPanel } from "../components/TraitPanel";
 
@@ -17,7 +19,6 @@ export function OnlineGamePage() {
   const timerRemainingMs = useOnlineStore((state) => state.timerRemainingMs);
   const lastError = useOnlineStore((state) => state.lastError);
   const buyTile = useOnlineStore((state) => state.buyTile);
-  const sellTile = useOnlineStore((state) => state.sellTile);
   const refreshShop = useOnlineStore((state) => state.refreshShop);
   const lockShop = useOnlineStore((state) => state.lockShop);
   const levelUp = useOnlineStore((state) => state.levelUp);
@@ -33,29 +34,19 @@ export function OnlineGamePage() {
   const publicGame = gameView.public;
   const privatePlayer = gameView.privatePlayer;
   const me = publicGame.players.find((player) => player.id === privatePlayer.playerId);
+  const players = publicGame.players.map((player) => ({
+    ...player,
+    meta: `手牌 ${player.handTileCount} · ${player.endedTurn ? "已结束" : "操作中"}`
+  }));
+  const remainingSeconds = timerRemainingMs ? Math.ceil(timerRemainingMs / 1000) : publicGame.deadlineAt ? Math.max(0, Math.ceil((publicGame.deadlineAt - Date.now()) / 1000)) : 60;
 
   return (
     <main className="game-shell">
-      <section className="grid gap-3 md:grid-cols-4">
-        {publicGame.players.map((player) => (
-          <article key={player.id} className="hud-panel">
-            <div className="flex items-center justify-between">
-              <strong>{player.name}</strong>
-              <span className={player.connected ? "text-jade" : "text-rose-300"}>{player.connected ? "在线" : "离线"}</span>
-            </div>
-            <div className="mt-3 flex justify-between text-sm text-slate-300">
-              <span>HP {player.hp}</span>
-              <span>{player.gold} 金</span>
-              <span>Lv.{player.level}</span>
-            </div>
-            <p className="mt-2 text-xs text-slate-400">手牌 {player.handTileCount} · 备牌 {player.benchTileCount} · {player.endedTurn ? "已结束" : "操作中"}</p>
-          </article>
-        ))}
-      </section>
-      <CityBanner city={publicGame.city} round={publicGame.round} stage={publicGame.stage} />
-      <div className="mt-3 flex items-center justify-between rounded-lg border border-white/10 bg-white/5 p-3 text-sm text-slate-300">
+      <GameTopbar city={publicGame.city} round={publicGame.round} stage={publicGame.stage} gold={privatePlayer.gold} hp={privatePlayer.hp} level={privatePlayer.level} />
+      <PlayerStatus players={players} winnerId={publicGame.winnerId} />
+      <div className="online-phase-strip">
         <span>阶段：{publicGame.phase}</span>
-        <span>倒计时：{timerRemainingMs ? Math.ceil(timerRemainingMs / 1000) : publicGame.deadlineAt ? Math.max(0, Math.ceil((publicGame.deadlineAt - Date.now()) / 1000)) : 60}s</span>
+        <span>倒计时：{remainingSeconds}s</span>
         {lastError && <span className="text-rose-300">{lastError}</span>}
       </div>
       <div className="game-grid">
@@ -63,7 +54,8 @@ export function OnlineGamePage() {
           <TraitPanel traits={me?.activeTraits ?? []} />
           <AugmentPanel augments={me?.augments.map((augment) => ({ ...augment, tags: [] })) ?? []} />
         </aside>
-        <section className="space-y-4">
+        <section className="table-stack">
+          <ArenaBoard />
           {privatePlayer.augmentChoices.length > 0 && publicGame.phase === "augment_select" && (
             <div className="game-section">
               <div className="section-head">
@@ -80,31 +72,6 @@ export function OnlineGamePage() {
               </div>
             </div>
           )}
-          <div className="game-section">
-            <div className="section-head">
-              <div>
-                <p className="eyebrow">私有商店</p>
-                <h3>只显示你的商店</h3>
-              </div>
-              <div className="flex gap-2">
-                <button className="control-button" type="button" onClick={levelUp}>
-                  升级 · {getLevelUpCost(privatePlayer.level)} 金
-                </button>
-                <button className="control-button" type="button" onClick={refreshShop}>
-                  <RefreshCcw size={16} />
-                  刷新
-                </button>
-                <button className="icon-button" type="button" onClick={lockShop} title="锁定商店">
-                  {privatePlayer.lockedShop ? <Lock size={17} /> : <Unlock size={17} />}
-                </button>
-              </div>
-            </div>
-            <div className="shop-grid">
-              {privatePlayer.shop.map((tile) => (
-                <TileCard key={tile.instanceId} tile={tile} definition={definitionFor(tile)} onClick={() => buyTile(tile.instanceId)} actionLabel="购买" />
-              ))}
-            </div>
-          </div>
           <div className="game-section">
             <div className="section-head">
               <div>
@@ -127,14 +94,43 @@ export function OnlineGamePage() {
                 <TileCard key={tile.instanceId} tile={tile} definition={definitionFor(tile)} compact onClick={() => discardTile(tile.instanceId)} actionLabel="弃" />
               ))}
             </div>
-            <div className="mt-4">
-              <p className="mb-2 text-sm text-slate-300">备牌区</p>
-              <div className="mini-rack">
-                {privatePlayer.benchTiles.map((tile) => (
-                  <TileCard key={tile.instanceId} tile={tile} definition={definitionFor(tile)} compact onClick={() => sellTile(tile.instanceId)} actionLabel="售" />
-                ))}
-                {privatePlayer.benchTiles.length === 0 && <span className="empty-copy">暂无备牌</span>}
+          </div>
+          <div className="game-section">
+            <div className="section-head">
+              <div>
+                <p className="eyebrow">私有商店</p>
+                <h3>五张牌刷新</h3>
               </div>
+              <div className="flex gap-2">
+                <button className="control-button" type="button" onClick={levelUp} disabled={privatePlayer.level >= 6 || privatePlayer.gold < getLevelUpCost(privatePlayer.level)}>
+                  升级 · {getLevelUpCost(privatePlayer.level)} 金
+                </button>
+                <button className="control-button" type="button" onClick={refreshShop}>
+                  <RefreshCcw size={16} />
+                  刷新
+                </button>
+                <button className="icon-button" type="button" onClick={lockShop} title="锁定商店">
+                  {privatePlayer.lockedShop ? <Lock size={17} /> : <Unlock size={17} />}
+                </button>
+              </div>
+            </div>
+            <div className="shop-grid">
+              {privatePlayer.shop.map((tile) => {
+                const definition = definitionFor(tile);
+                const cannotAfford = Boolean(definition && privatePlayer.gold < definition.cost);
+                const handFull = privatePlayer.handTiles.length >= 14;
+
+                return (
+                  <TileCard
+                    key={tile.instanceId}
+                    tile={tile}
+                    definition={definition}
+                    onClick={() => buyTile(tile.instanceId)}
+                    actionLabel={handFull ? "手牌已满" : cannotAfford ? "金币不足" : "购买"}
+                    disabled={cannotAfford || handFull}
+                  />
+                );
+              })}
             </div>
           </div>
         </section>

@@ -13,8 +13,20 @@ describe("aiEngine", () => {
       throw new Error("expected an AI player");
     }
 
+    const targetTile = ai.handTiles[0];
+    const offeredTile = game.tilePool.find((tile) => tile.tileId === targetTile.tileId);
+
+    if (!offeredTile) {
+      throw new Error("expected a matching shop tile");
+    }
+
     const updated = runAITurn({
-      game,
+      game: {
+        ...game,
+        shop: [offeredTile],
+        tilePool: game.tilePool.filter((tile) => tile.instanceId !== offeredTile.instanceId),
+        players: game.players.map((player) => (player.id === ai.id ? { ...player, gold: 20 } : player))
+      },
       playerId: ai.id,
       definitions: tileDefinitions,
       rng: createSeededRandom(22)

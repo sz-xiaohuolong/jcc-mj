@@ -12,7 +12,7 @@
 | `room:ready` | 设置准备状态 |
 | `game:start` | 房主开始游戏 |
 | `game:buyTile` | 购买私有商店牌 |
-| `game:sellTile` | 出售手牌或备牌 |
+| `game:sellTile` | 兼容遗留动作；当前前端玩法不再暴露备牌出售 |
 | `game:refreshShop` | 刷新私有商店 |
 | `game:lockShop` | 锁定 / 解锁私有商店 |
 | `game:discardTile` | 弃牌 |
@@ -50,7 +50,7 @@
 服务端不会把所有玩家手牌广播给所有人。`ClientGameView` 包含：
 
 - `public`：公共游戏状态，如玩家血量、金币、等级、弃牌区、城邦、回合、日志。
-- `privatePlayer`：当前 socket 对应玩家的手牌、备牌、私有商店、海克斯选项。
+- `privatePlayer`：当前 socket 对应玩家的手牌、私有商店、海克斯选项。`benchTiles` 字段短期保留为空数组用于兼容旧客户端。
 
 ## 错误码
 

@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../../shared/protocol/events";
 import type { ClientToServerEvents, ServerToClientEvents } from "../../shared/protocol/socketTypes";
 import type { ClientGameView, CreateRoomResult, GameError, JoinRoomResult, RoomStateView } from "../../shared/types/network";
+import { resolveOnlineServerUrl } from "../utils/network";
 import { useGameStore } from "./gameStore";
 
 type OnlineSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
@@ -39,7 +40,7 @@ interface OnlineState {
   endTurn: () => Promise<void>;
 }
 
-const serverUrl = import.meta.env.VITE_SERVER_URL ?? "http://localhost:8787";
+const serverUrl = resolveOnlineServerUrl(import.meta.env.VITE_SERVER_URL, window.location);
 const sessionKey = "jcc-mj-online-session";
 
 function ackToPromise<T>(emit: (ack: (response: { ok: boolean; data?: T; error?: GameError }) => void) => void): Promise<T | undefined> {

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { tileDefinitions } from "../data/tiles";
+import { applyImmediateAugmentEffect } from "../engine/augmentEffects";
 import { chooseAugmentForAI, getRefreshCostModifier } from "../engine/augmentEngine";
 import { runAITurn } from "../engine/aiEngine";
 import {
@@ -23,6 +24,7 @@ interface GameStore {
   game: GameState;
   view: "home" | "game" | "rules" | "online-home" | "online-lobby" | "online-game";
   seed: number;
+  lastError?: string;
   startGame: () => void;
   goHome: () => void;
   openRules: () => void;
@@ -68,18 +70,20 @@ export const useGameStore = create<GameStore>((set, get) => ({
   game: initialGame,
   view: "home",
   seed: 42,
+  lastError: undefined,
 
   startGame() {
     const seed = Math.floor(Math.random() * 100000);
     set({
       seed,
       view: "game",
+      lastError: undefined,
       game: createInitialGame({ rng: createSeededRandom(seed) })
     });
   },
 
   goHome() {
-    set({ view: "home", game: initialGame });
+    set({ view: "home", game: initialGame, lastError: undefined });
   },
 
   openRules() {
@@ -91,7 +95,25 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   buyFromShop(instanceId) {
-    set((state) => ({ game: buyTile(state.game, state.game.currentPlayerId, instanceId) }));
+    set((state) => {
+      const player = playerOf(state.game);
+      const shopTile = state.game.shop.find((tile) => tile.instanceId === instanceId);
+      const definition = tileDefinitions.find((tile) => tile.id === shopTile?.tileId);
+
+      if (!shopTile || !definition) {
+        return { lastError: "商店中没有这张牌。" };
+      }
+
+      if (!player || player.gold < definition.cost) {
+        return { lastError: `金币不足，需要 ${definition.cost} 金币。` };
+      }
+
+      if (player.handTiles.length >= 14) {
+        return { lastError: "手牌已满，请先弃 1 张牌再购买。" };
+      }
+
+      return { game: buyTile(state.game, state.game.currentPlayerId, instanceId), lastError: undefined };
+    });
   },
 
   refreshShop() {
@@ -168,25 +190,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   chooseAugment(augment) {
-    set((state) => ({
-      game: {
+    set((state) => {
+      const selectedAugments = new Map<string, AugmentDefinition>();
+      let game: GameState = {
         ...state.game,
         phase: "shop",
         augmentChoices: [],
         players: state.game.players.map((player) => {
           if (player.id === state.game.currentPlayerId) {
+            selectedAugments.set(player.id, augment);
             return { ...player, augments: [...player.augments, augment] };
           }
 
           if (player.isAI) {
-            return { ...player, augments: [...player.augments, chooseAugmentForAI(player, state.game.augmentChoices)] };
+            const aiAugment = chooseAugmentForAI(player, state.game.augmentChoices);
+            selectedAugments.set(player.id, aiAugment);
+            return { ...player, augments: [...player.augments, aiAugment] };
           }
 
           return player;
         }),
         logs: [...state.game.logs, createLog(state.game.round, `选择海克斯：${augment.name}`, "good")]
+      };
+
+      for (const [playerId, selected] of selectedAugments) {
+        game = applyImmediateAugmentEffect(game, playerId, selected, nextRng(state.seed + game.round + playerId.length));
       }
-    }));
+
+      return { game, lastError: undefined };
+    });
   },
 
   closeSettlement() {

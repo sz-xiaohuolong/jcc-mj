@@ -4,7 +4,7 @@ import type { GameLog, GameState, PlayerState, RandomSource, TileDefinition, Til
 import { pickOne } from "../utils/random";
 import { createAugmentChoices, getInterestCapBonus, shouldOfferAugment } from "./augmentEngine";
 import { chooseRandomCity } from "./cityEngine";
-import { settlePlayer } from "./damageEngine";
+import { settlePlayers } from "./damageEngine";
 import { calculateActiveTraits } from "./traitEngine";
 import { calculateInterest, createInitialTilePool, drawTiles, refreshShop } from "./shopEngine";
 
@@ -52,7 +52,8 @@ function createPlayer({
     isAlive: true,
     isWinning: false,
     lockedShop: false,
-    hasRefreshedThisRound: false
+    hasRefreshedThisRound: false,
+    hasDiscardedThisRound: false
   };
 }
 
@@ -141,21 +142,21 @@ export function refreshGameShop(game: GameState, rng: RandomSource): GameState {
 export function buyTile(game: GameState, playerId: string, instanceId: string): GameState {
   const shopTile = game.shop.find((tile) => tile.instanceId === instanceId);
   const definition = tileDefinitions.find((tile) => tile.id === shopTile?.tileId);
+  const buyer = game.players.find((player) => player.id === playerId);
 
-  if (!shopTile || !definition) {
+  if (!shopTile || !definition || !buyer || buyer.gold < definition.cost || buyer.handTiles.length >= 14) {
     return game;
   }
 
   const players = game.players.map((player) => {
-    if (player.id !== playerId || player.gold < definition.cost) {
+    if (player.id !== playerId) {
       return player;
     }
 
-    const targetZone = player.handTiles.length < 14 ? "handTiles" : "benchTiles";
     const nextPlayer = {
       ...player,
       gold: player.gold - definition.cost,
-      [targetZone]: [...player[targetZone], shopTile]
+      handTiles: [...player.handTiles, shopTile]
     };
 
     return {
@@ -173,8 +174,9 @@ export function buyTile(game: GameState, playerId: string, instanceId: string): 
 }
 
 export function discardTile(game: GameState, playerId: string, instanceId: string): GameState {
+  let returnedTile: TileInstance | null = null;
   const players = game.players.map((player) => {
-    if (player.id !== playerId) {
+    if (player.id !== playerId || player.hasDiscardedThisRound) {
       return player;
     }
 
@@ -185,26 +187,28 @@ export function discardTile(game: GameState, playerId: string, instanceId: strin
     }
 
     const nextHand = player.handTiles.filter((item) => item.instanceId !== instanceId);
+    returnedTile = tile;
 
     return {
       ...player,
       handTiles: nextHand,
       discardTiles: [...player.discardTiles, tile],
-      activeTraits: calculateActiveTraits(definitionsForInstances(nextHand))
+      activeTraits: calculateActiveTraits(definitionsForInstances(nextHand)),
+      hasDiscardedThisRound: true
     };
   });
 
-  return { ...game, players };
+  return { ...game, players, tilePool: returnedTile ? [...game.tilePool, returnedTile] : game.tilePool };
 }
 
 export function sellTile(game: GameState, playerId: string, instanceId: string): GameState {
+  let returnedTile: TileInstance | null = null;
   const players = game.players.map((player) => {
     if (player.id !== playerId) {
       return player;
     }
 
-    const allTiles = [...player.handTiles, ...player.benchTiles];
-    const sold = allTiles.find((tile) => tile.instanceId === instanceId);
+    const sold = player.handTiles.find((tile) => tile.instanceId === instanceId);
     const definition = tileDefinitions.find((tile) => tile.id === sold?.tileId);
 
     if (!sold || !definition) {
@@ -212,19 +216,18 @@ export function sellTile(game: GameState, playerId: string, instanceId: string):
     }
 
     const handTiles = player.handTiles.filter((tile) => tile.instanceId !== instanceId);
-    const benchTiles = player.benchTiles.filter((tile) => tile.instanceId !== instanceId);
+    returnedTile = sold;
 
     return {
       ...player,
       gold: player.gold + Math.max(1, definition.cost - 1),
       handTiles,
-      benchTiles,
       discardTiles: [...player.discardTiles, sold],
       activeTraits: calculateActiveTraits(definitionsForInstances(handTiles))
     };
   });
 
-  return { ...game, players };
+  return { ...game, players, tilePool: returnedTile ? [...game.tilePool, returnedTile] : game.tilePool };
 }
 
 export function getLevelUpCost(level: number): number {
@@ -259,13 +262,10 @@ export function levelUpPlayer(game: GameState, playerId: string): GameState {
 }
 
 export function endRound(game: GameState, rng: RandomSource): GameState {
-  const settlement = game.players.map((player) =>
-    settlePlayer({
-      player,
-      tiles: definitionsForInstances(player.handTiles),
-      city: game.city
-    })
+  const tilesByPlayer = new Map(
+    game.players.map((player) => [player.id, definitionsForInstances(player.handTiles)])
   );
+  const settlement = settlePlayers({ players: game.players, tilesByPlayer, city: game.city });
   const players = game.players.map((player) => {
     const entry = settlement.find((item) => item.playerId === player.id);
     const interestCap = 5 + (game.city?.modifiers.interestCapBonus ?? 0) + getInterestCapBonus(player);
@@ -282,7 +282,8 @@ export function endRound(game: GameState, rng: RandomSource): GameState {
       gold: player.gold + 5 + interest + traitGold,
       isAlive: (entry?.hpAfter ?? player.hp) > 0,
       isWinning: entry?.status === "winning",
-      hasRefreshedThisRound: false
+      hasRefreshedThisRound: false,
+      hasDiscardedThisRound: false
     };
   });
   const alive = players.filter((player) => player.isAlive);

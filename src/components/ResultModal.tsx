@@ -27,9 +27,14 @@ export function ResultModal() {
               {game.lastSettlement.map((entry) => (
                 <div key={entry.playerId} className="settlement-row">
                   <strong>{entry.playerName}</strong>
-                  <span>{entry.status === "winning" ? entry.patterns.map((pattern) => pattern.name).join("、") : "未胡牌"}</span>
+                  <span>
+                    {entry.status === "winning"
+                      ? `${entry.isRoundWinner ? "本回合胜者 · " : "质量落败 · "}${entry.patterns.map((pattern) => pattern.name).join("、")} · ${entry.combatScore}分`
+                      : "未胡牌"}
+                  </span>
                   <span>
                     {entry.hpBefore} → {entry.hpAfter}
+                    {entry.damage > 0 ? ` / 扣 ${entry.damage}` : ""}
                   </span>
                 </div>
               ))}

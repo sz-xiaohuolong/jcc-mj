@@ -87,6 +87,7 @@ export interface PlayerState {
   isWinning: boolean;
   lockedShop: boolean;
   hasRefreshedThisRound: boolean;
+  hasDiscardedThisRound: boolean;
 }
 
 export interface GameLog {
@@ -104,6 +105,9 @@ export interface SettlementEntry {
   damage: number;
   status: "winning" | "ready" | "close" | "unformed";
   patterns: WinningPattern[];
+  combatScore: number;
+  isRoundWinner: boolean;
+  roundRank: number;
 }
 
 export type GamePhase =

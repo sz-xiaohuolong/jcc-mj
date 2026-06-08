@@ -1,8 +1,9 @@
 import { StepForward, Swords } from "lucide-react";
 import { getLevelUpCost, useGameStore } from "../store/gameStore";
+import { ArenaBoard } from "./ArenaBoard";
 import { AugmentModal } from "./AugmentModal";
 import { AugmentPanel } from "./AugmentPanel";
-import { CityBanner } from "./CityBanner";
+import { GameTopbar } from "./GameTopbar";
 import { HandArea } from "./HandArea";
 import { PlayerStatus } from "./PlayerStatus";
 import { ResultModal } from "./ResultModal";
@@ -13,20 +14,23 @@ export function GameBoard() {
   const game = useGameStore((state) => state.game);
   const endTurn = useGameStore((state) => state.endTurn);
   const levelUp = useGameStore((state) => state.levelUp);
+  const lastError = useGameStore((state) => state.lastError);
   const player = game.players.find((item) => item.id === game.currentPlayerId);
+  const levelCost = player ? getLevelUpCost(player.level) : 0;
 
   return (
     <main className="game-shell">
+      <GameTopbar city={game.city} round={game.round} stage={game.stage} gold={player?.gold ?? 0} hp={player?.hp ?? 0} level={player?.level ?? 0} />
       <PlayerStatus players={game.players} winnerId={game.winnerId} />
-      <CityBanner city={game.city} round={game.round} stage={game.stage} />
       <div className="game-grid">
         <aside className="space-y-4">
           <TraitPanel traits={player?.activeTraits ?? []} />
           <AugmentPanel augments={player?.augments ?? []} />
         </aside>
-        <div className="space-y-4">
-          <ShopArea />
+        <div className="table-stack">
+          <ArenaBoard />
           <HandArea />
+          <ShopArea />
         </div>
         <aside className="space-y-4">
           <section className="side-panel">
@@ -43,8 +47,9 @@ export function GameBoard() {
               <strong>{player?.level}</strong>
             </div>
             <button className="control-button mt-4 w-full" type="button" onClick={levelUp}>
-              升级 · {player ? getLevelUpCost(player.level) : 0} 金
+              升级 · {levelCost} 金
             </button>
+            {lastError && <p className="notice-line notice-line--warn">{lastError}</p>}
             <button className="primary-button mt-4 w-full" type="button" onClick={endTurn}>
               结束回合
               <StepForward size={17} />

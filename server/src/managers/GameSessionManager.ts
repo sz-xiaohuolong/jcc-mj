@@ -1,5 +1,6 @@
 import { augmentDefinitions } from "../../../src/data/augments";
 import { tileDefinitions } from "../../../src/data/tiles";
+import { applyImmediateAugmentEffect } from "../../../src/engine/augmentEffects";
 import { chooseAugmentForAI, createAugmentChoices, getRefreshCostModifier } from "../../../src/engine/augmentEngine";
 import { runAITurn } from "../../../src/engine/aiEngine";
 import { createInitialGame, createLog, definitionsForInstances, endRound, getLevelUpCost, rebuildPool } from "../../../src/engine/gameEngine";
@@ -148,7 +149,7 @@ export class GameSessionManager {
         augments: player.augments.map(({ id, name, rarity, description }) => ({ id, name, rarity, description })),
         discardTiles: player.discardTiles,
         handTileCount: player.handTiles.length,
-        benchTileCount: player.benchTiles.length
+        benchTileCount: 0
       })),
       logs: session.game.logs,
       lastSettlement: session.game.lastSettlement,
@@ -168,7 +169,7 @@ export class GameSessionManager {
     return {
       playerId,
       handTiles: player.handTiles,
-      benchTiles: player.benchTiles,
+      benchTiles: [],
       shop: session.playerShops[playerId] ?? [],
       augmentChoices: session.playerAugmentChoices[playerId] ?? [],
       gold: player.gold,
@@ -190,11 +191,11 @@ export class GameSessionManager {
 
     if (!shopTile || !definition) return fail("TILE_NOT_FOUND", "商店中没有这张牌");
     if (player.gold < definition.cost) return fail("NOT_ENOUGH_GOLD", "金币不足");
+    if (player.handTiles.length >= 14) return fail("INVALID_ACTION", "手牌已满，请先弃 1 张牌再购买");
 
-    const targetZone = player.handTiles.length < 14 ? "handTiles" : "benchTiles";
     const players = session.game.players.map((item) => {
       if (item.id !== playerId) return item;
-      const next = { ...item, gold: item.gold - definition.cost, [targetZone]: [...item[targetZone], shopTile] };
+      const next = { ...item, gold: item.gold - definition.cost, handTiles: [...item.handTiles, shopTile] };
       return { ...next, activeTraits: definitionsForInstances(next.handTiles).length > 0 ? this.recalculateTraits(next) : next.activeTraits };
     });
 
@@ -212,7 +213,7 @@ export class GameSessionManager {
     if (!guard.valid) return guard.response;
 
     const player = guard.player;
-    const sold = [...player.handTiles, ...player.benchTiles].find((tile) => tile.instanceId === instanceId);
+    const sold = player.handTiles.find((tile) => tile.instanceId === instanceId);
     const definition = tileDefinitions.find((tile) => tile.id === sold?.tileId);
     if (!sold || !definition) return fail("TILE_NOT_FOUND", "没有这张牌");
 
@@ -221,16 +222,15 @@ export class GameSessionManager {
       players: guard.session.game.players.map((item) => {
         if (item.id !== playerId) return item;
         const handTiles = item.handTiles.filter((tile) => tile.instanceId !== instanceId);
-        const benchTiles = item.benchTiles.filter((tile) => tile.instanceId !== instanceId);
         const next = {
           ...item,
           gold: item.gold + Math.max(1, definition.cost - 1),
           handTiles,
-          benchTiles,
           discardTiles: [...item.discardTiles, sold]
         };
         return { ...next, activeTraits: this.recalculateTraits(next) };
-      })
+      }),
+      tilePool: [...guard.session.game.tilePool, sold]
     };
     return ok({ game: this.buildClientGameView(roomId, playerId) });
   }
@@ -327,6 +327,7 @@ export class GameSessionManager {
   discardTile(roomId: string, playerId: string, instanceId: string): AckResponse<ActionResult> {
     const guard = this.canAct(roomId, playerId);
     if (!guard.valid) return guard.response;
+    if (guard.player.hasDiscardedThisRound) return fail("INVALID_ACTION", "每回合只能弃 1 张牌");
     const tile = guard.player.handTiles.find((item) => item.instanceId === instanceId);
     if (!tile) return fail("TILE_NOT_FOUND", "手牌中没有这张牌");
 
@@ -335,9 +336,10 @@ export class GameSessionManager {
       players: guard.session.game.players.map((player) => {
         if (player.id !== playerId) return player;
         const handTiles = player.handTiles.filter((item) => item.instanceId !== instanceId);
-        const next = { ...player, handTiles, discardTiles: [...player.discardTiles, tile] };
+        const next = { ...player, handTiles, discardTiles: [...player.discardTiles, tile], hasDiscardedThisRound: true };
         return { ...next, activeTraits: this.recalculateTraits(next) };
-      })
+      }),
+      tilePool: [...guard.session.game.tilePool, tile]
     };
     return ok({ game: this.buildClientGameView(roomId, playerId) });
   }
@@ -351,11 +353,16 @@ export class GameSessionManager {
     const choice = (session.playerAugmentChoices[playerId] ?? []).find((augment) => augment.id === augmentId);
     if (!choice) return fail("INVALID_ACTION", "海克斯选项无效");
 
-    session.game = {
-      ...session.game,
-      players: session.game.players.map((item) => (item.id === playerId ? { ...item, augments: [...item.augments, choice] } : item)),
-      logs: [...session.game.logs, createLog(session.game.round, `${player.name} 选择海克斯：${choice.name}`, "good")]
-    };
+    session.game = applyImmediateAugmentEffect(
+      {
+        ...session.game,
+        players: session.game.players.map((item) => (item.id === playerId ? { ...item, augments: [...item.augments, choice] } : item)),
+        logs: [...session.game.logs, createLog(session.game.round, `${player.name} 选择海克斯：${choice.name}`, "good")]
+      },
+      playerId,
+      choice,
+      rng(session.rngSeed + session.game.round + playerId.length + 2000)
+    );
     session.playerAugmentChoices[playerId] = [];
 
     if (session.game.players.filter((item) => !item.isAI).every((item) => (session.playerAugmentChoices[item.id] ?? []).length === 0)) {
@@ -460,7 +467,11 @@ export class GameSessionManager {
       session.playerAugmentChoices = Object.fromEntries(session.game.players.map((player, index) => [player.id, createAugmentChoices(rng(session.rngSeed + settled.round + index))]));
       for (const ai of session.game.players.filter((player) => player.isAI)) {
         const choice = chooseAugmentForAI(ai, session.playerAugmentChoices[ai.id] ?? augmentDefinitions.slice(0, 3));
-        ai.augments = [...ai.augments, choice];
+        session.game = {
+          ...session.game,
+          players: session.game.players.map((player) => (player.id === ai.id ? { ...player, augments: [...player.augments, choice] } : player))
+        };
+        session.game = applyImmediateAugmentEffect(session.game, ai.id, choice, rng(session.rngSeed + settled.round + ai.id.length + 2300));
         session.playerAugmentChoices[ai.id] = [];
       }
     }

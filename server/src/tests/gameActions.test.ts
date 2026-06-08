@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { augmentDefinitions } from "../../../src/data/augments";
 import { RoomManager } from "../managers/RoomManager";
 import { GameSessionManager } from "../managers/GameSessionManager";
 
@@ -40,6 +41,21 @@ describe("GameSessionManager", () => {
     expect(after.privatePlayer.gold).toBeLessThan(before.privatePlayer.gold);
   });
 
+  it("rejects a buy when the player's hand is full", () => {
+    const { sessionManager, session, owner } = createStartedSession();
+    const view = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+    const fullHand = session.game.tilePool.slice(0, 14);
+    sessionManager.setPlayerHandForTest(session.roomId, owner.id, fullHand);
+
+    const result = sessionManager.buyTile(session.roomId, owner.id, view.privatePlayer.shop[0].instanceId);
+    const after = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+
+    expect(result.ok).toBe(false);
+    expect(result.error?.code).toBe("INVALID_ACTION");
+    expect(after.privatePlayer.handTiles).toHaveLength(14);
+    expect(after.privatePlayer.shop.map((tile) => tile.instanceId)).toContain(view.privatePlayer.shop[0].instanceId);
+  });
+
   it("rejects a buy when the player has insufficient gold", () => {
     const { sessionManager, session, owner } = createStartedSession();
     sessionManager.setPlayerGoldForTest(session.roomId, owner.id, 0);
@@ -53,6 +69,10 @@ describe("GameSessionManager", () => {
 
   it("charges gold when refreshing a private shop", () => {
     const { sessionManager, session, owner } = createStartedSession();
+    session.game = {
+      ...session.game,
+      players: session.game.players.map((player) => (player.id === owner.id ? { ...player, activeTraits: [] } : player))
+    };
     const before = sessionManager.buildClientGameView(session.roomId, owner.id)!;
 
     const result = sessionManager.refreshShop(session.roomId, owner.id);
@@ -97,6 +117,22 @@ describe("GameSessionManager", () => {
     );
   });
 
+  it("allows only one discard per round and returns the discarded tile to the pool", () => {
+    const { sessionManager, session, owner } = createStartedSession();
+    const before = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+    const firstTile = before.privatePlayer.handTiles[0];
+    const secondTile = before.privatePlayer.handTiles[1];
+
+    const firstResult = sessionManager.discardTile(session.roomId, owner.id, firstTile.instanceId);
+    const secondResult = sessionManager.discardTile(session.roomId, owner.id, secondTile.instanceId);
+    const after = sessionManager.getSession(session.roomId)!;
+
+    expect(firstResult.ok).toBe(true);
+    expect(secondResult.ok).toBe(false);
+    expect(secondResult.error?.code).toBe("INVALID_ACTION");
+    expect(after.game.tilePool.map((tile) => tile.instanceId)).toContain(firstTile.instanceId);
+  });
+
   it("rejects game actions outside the operation phase", () => {
     const { sessionManager, session, owner } = createStartedSession();
     sessionManager.forcePhaseForTest(session.roomId, "settlement");
@@ -122,5 +158,22 @@ describe("GameSessionManager", () => {
     expect(firstEnd.ok).toBe(true);
     expect(secondEnd.ok).toBe(false);
     expect(secondEnd.error?.code).toBe("ALREADY_ENDED_TURN");
+  });
+
+  it("applies fast-form immediately when selected in online play", () => {
+    const { sessionManager, session, owner } = createStartedSession();
+    const fastForm = augmentDefinitions.find((augment) => augment.id === "fast-form");
+    if (!fastForm) throw new Error("Missing fast-form augment");
+    sessionManager.forcePhaseForTest(session.roomId, "augment_select");
+    session.playerAugmentChoices[owner.id] = [fastForm];
+    const before = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+
+    const result = sessionManager.chooseAugment(session.roomId, owner.id, fastForm.id);
+    const after = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+
+    expect(result.ok).toBe(true);
+    expect(after.privatePlayer.handTiles.length + after.privatePlayer.benchTiles.length).toBe(
+      before.privatePlayer.handTiles.length + before.privatePlayer.benchTiles.length + 2
+    );
   });
 });

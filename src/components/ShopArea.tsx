@@ -28,15 +28,22 @@ export function ShopArea() {
         </div>
       </div>
       <div className="shop-grid">
-        {game.shop.map((tile) => (
-          <TileCard
-            key={tile.instanceId}
-            tile={tile}
-            definition={getDefinition(tile)}
-            onClick={() => buyFromShop(tile.instanceId)}
-            actionLabel="购买"
-          />
-        ))}
+        {game.shop.map((tile) => {
+          const definition = getDefinition(tile);
+          const cannotAfford = Boolean(player && definition && player.gold < definition.cost);
+          const handFull = Boolean(player && player.handTiles.length >= 14);
+
+          return (
+            <TileCard
+              key={tile.instanceId}
+              tile={tile}
+              definition={definition}
+              onClick={() => buyFromShop(tile.instanceId)}
+              actionLabel={handFull ? "手牌已满" : cannotAfford ? "金币不足" : "购买"}
+              disabled={cannotAfford || handFull}
+            />
+          );
+        })}
       </div>
     </section>
   );
