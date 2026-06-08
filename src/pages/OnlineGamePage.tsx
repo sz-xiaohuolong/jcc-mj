@@ -1,5 +1,6 @@
-import { Lock, RefreshCcw, StepForward, Unlock } from "lucide-react";
+import { Lock, RefreshCcw, StepForward, Unlock, Wand2 } from "lucide-react";
 import { tileDefinitions } from "../data/tiles";
+import { getLevelUpCost } from "../store/gameStore";
 import { useOnlineStore } from "../store/onlineStore";
 import type { TileInstance } from "../types";
 import { AugmentPanel } from "../components/AugmentPanel";
@@ -19,6 +20,8 @@ export function OnlineGamePage() {
   const sellTile = useOnlineStore((state) => state.sellTile);
   const refreshShop = useOnlineStore((state) => state.refreshShop);
   const lockShop = useOnlineStore((state) => state.lockShop);
+  const levelUp = useOnlineStore((state) => state.levelUp);
+  const organizeHand = useOnlineStore((state) => state.organizeHand);
   const discardTile = useOnlineStore((state) => state.discardTile);
   const chooseAugment = useOnlineStore((state) => state.chooseAugment);
   const endTurn = useOnlineStore((state) => state.endTurn);
@@ -84,6 +87,9 @@ export function OnlineGamePage() {
                 <h3>只显示你的商店</h3>
               </div>
               <div className="flex gap-2">
+                <button className="control-button" type="button" onClick={levelUp}>
+                  升级 · {getLevelUpCost(privatePlayer.level)} 金
+                </button>
                 <button className="control-button" type="button" onClick={refreshShop}>
                   <RefreshCcw size={16} />
                   刷新
@@ -105,10 +111,16 @@ export function OnlineGamePage() {
                 <p className="eyebrow">私有手牌</p>
                 <h3>{privatePlayer.handTiles.length} 张</h3>
               </div>
-              <button className="primary-button" type="button" onClick={endTurn} disabled={privatePlayer.endedTurn}>
-                <StepForward size={17} />
-                {privatePlayer.endedTurn ? "等待其他玩家" : "结束回合"}
-              </button>
+              <div className="flex flex-wrap gap-2">
+                <button className="control-button" type="button" onClick={organizeHand}>
+                  <Wand2 size={16} />
+                  整理
+                </button>
+                <button className="primary-button" type="button" onClick={endTurn} disabled={privatePlayer.endedTurn}>
+                  <StepForward size={17} />
+                  {privatePlayer.endedTurn ? "等待其他玩家" : "结束回合"}
+                </button>
+              </div>
             </div>
             <div className="tile-rack">
               {privatePlayer.handTiles.map((tile) => (

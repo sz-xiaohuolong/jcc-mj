@@ -203,6 +203,18 @@ export function setupSocketServer(io: OnlineServer) {
       }
     });
 
+    socket.on(CLIENT_EVENTS.gameLevelUp, (payload, ack) => {
+      const record = requireConnection(socket);
+      if (!record.ok || !record.data) return ack({ ok: false, error: record.error });
+      ackAndBroadcast(io, payload.roomId, gameSessionManager.levelUp(payload.roomId, record.data.playerId), ack);
+    });
+
+    socket.on(CLIENT_EVENTS.gameOrganizeHand, (payload, ack) => {
+      const record = requireConnection(socket);
+      if (!record.ok || !record.data) return ack({ ok: false, error: record.error });
+      ackAndBroadcast(io, payload.roomId, gameSessionManager.organizeHand(payload.roomId, record.data.playerId), ack);
+    });
+
     socket.on(CLIENT_EVENTS.connectionResume, (payload, ack) => {
       const result = connectionManager.resume(socket.id, payload.sessionToken);
       if (!result.ok || !result.data) {

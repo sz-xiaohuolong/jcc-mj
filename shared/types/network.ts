@@ -82,6 +82,14 @@ export interface EndTurnPayload {
   roomId: string;
 }
 
+export interface LevelUpPayload {
+  roomId: string;
+}
+
+export interface OrganizeHandPayload {
+  roomId: string;
+}
+
 export interface ResumePayload {
   sessionToken: string;
 }

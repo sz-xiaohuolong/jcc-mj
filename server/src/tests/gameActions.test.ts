@@ -63,6 +63,40 @@ describe("GameSessionManager", () => {
     expect(after.privatePlayer.shop).toHaveLength(5);
   });
 
+  it("lets a player spend gold to level up", () => {
+    const { sessionManager, session, owner } = createStartedSession();
+    const before = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+
+    const result = sessionManager.levelUp(session.roomId, owner.id);
+    const after = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+
+    expect(result.ok).toBe(true);
+    expect(after.privatePlayer.level).toBe(before.privatePlayer.level + 1);
+    expect(after.privatePlayer.gold).toBeLessThan(before.privatePlayer.gold);
+  });
+
+  it("organizes a player's hand in tile order on the server", () => {
+    const { sessionManager, session, owner } = createStartedSession();
+    const before = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+    const reversed = [...before.privatePlayer.handTiles].reverse();
+    sessionManager.setPlayerHandForTest(session.roomId, owner.id, reversed);
+
+    const result = sessionManager.organizeHand(session.roomId, owner.id);
+    const after = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+
+    expect(result.ok).toBe(true);
+    expect(after.privatePlayer.handTiles).not.toEqual(reversed);
+    expect(after.privatePlayer.handTiles.map((tile) => tile.tileId)).toEqual(
+      [...after.privatePlayer.handTiles.map((tile) => tile.tileId)].sort((left, right) => {
+        const suitOrder = ["wan", "tong", "tiao", "wind", "dragon"];
+        const [leftSuit, leftRank = "0"] = left.split("-");
+        const [rightSuit, rightRank = "0"] = right.split("-");
+        const suitDelta = suitOrder.indexOf(leftSuit) - suitOrder.indexOf(rightSuit);
+        return suitDelta || Number(leftRank) - Number(rightRank) || left.localeCompare(right);
+      })
+    );
+  });
+
   it("rejects game actions outside the operation phase", () => {
     const { sessionManager, session, owner } = createStartedSession();
     sessionManager.forcePhaseForTest(session.roomId, "settlement");

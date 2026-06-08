@@ -11,6 +11,8 @@ export const CLIENT_EVENTS = {
   gameDiscardTile: "game:discardTile",
   gameChooseAugment: "game:chooseAugment",
   gameEndTurn: "game:endTurn",
+  gameLevelUp: "game:levelUp",
+  gameOrganizeHand: "game:organizeHand",
   connectionResume: "connection:resume"
 } as const;
 

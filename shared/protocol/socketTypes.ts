@@ -7,12 +7,14 @@ import type {
   CreateRoomResult,
   DiscardTilePayload,
   EndTurnPayload,
+  LevelUpPayload,
   GameError,
   GameEventLog,
   JoinRoomPayload,
   JoinRoomResult,
   LeaveRoomPayload,
   LockShopPayload,
+  OrganizeHandPayload,
   PlayerConnectionPayload,
   ReadyPayload,
   RefreshShopPayload,
@@ -38,6 +40,8 @@ export type ClientToServerEvents = {
   "game:discardTile": (payload: DiscardTilePayload, ack: Ack<ActionResult>) => void;
   "game:chooseAugment": (payload: ChooseAugmentPayload, ack: Ack<ActionResult>) => void;
   "game:endTurn": (payload: EndTurnPayload, ack: Ack<ActionResult>) => void;
+  "game:levelUp": (payload: LevelUpPayload, ack: Ack<ActionResult>) => void;
+  "game:organizeHand": (payload: OrganizeHandPayload, ack: Ack<ActionResult>) => void;
   "connection:resume": (payload: ResumePayload, ack: Ack<ResumeResult>) => void;
 };
 

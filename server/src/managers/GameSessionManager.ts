@@ -2,11 +2,12 @@ import { augmentDefinitions } from "../../../src/data/augments";
 import { tileDefinitions } from "../../../src/data/tiles";
 import { chooseAugmentForAI, createAugmentChoices, getRefreshCostModifier } from "../../../src/engine/augmentEngine";
 import { runAITurn } from "../../../src/engine/aiEngine";
-import { createInitialGame, createLog, definitionsForInstances, endRound, rebuildPool } from "../../../src/engine/gameEngine";
+import { createInitialGame, createLog, definitionsForInstances, endRound, getLevelUpCost, rebuildPool } from "../../../src/engine/gameEngine";
 import { refreshShop } from "../../../src/engine/shopEngine";
 import { calculateActiveTraits, getRefreshDiscount } from "../../../src/engine/traitEngine";
 import type { AugmentDefinition, GamePhase, GameState, PlayerState, RandomSource, TileInstance, TileWithDefinition } from "../../../src/types";
 import { createSeededRandom } from "../../../src/utils/random";
+import { sortTiles } from "../../../src/utils/tileSort";
 import type { AckResponse, ActionResult, ClientGameView, PrivatePlayerView, PublicGameView } from "../../../shared/types/network";
 import type { Room, RoomPlayer } from "./RoomManager";
 import { fail, ok } from "../utils/result";
@@ -265,6 +266,54 @@ export class GameSessionManager {
     return ok({ game: this.buildClientGameView(roomId, playerId) });
   }
 
+  levelUp(roomId: string, playerId: string): AckResponse<ActionResult> {
+    const guard = this.canAct(roomId, playerId);
+    if (!guard.valid) return guard.response;
+    const { session, player } = guard;
+
+    if (player.level >= 6) {
+      return fail("INVALID_ACTION", "已经达到最高等级");
+    }
+
+    const cost = getLevelUpCost(player.level);
+    if (player.gold < cost) {
+      return fail("NOT_ENOUGH_GOLD", "金币不足");
+    }
+
+    session.game = {
+      ...session.game,
+      players: session.game.players.map((item) =>
+        item.id === playerId ? { ...item, gold: item.gold - cost, level: item.level + 1, xp: 0 } : item
+      ),
+      logs: [...session.game.logs, createLog(session.game.round, `${player.name} 升级到 ${player.level + 1}。`, "good")]
+    };
+
+    return ok({ game: this.buildClientGameView(roomId, playerId) });
+  }
+
+  organizeHand(roomId: string, playerId: string): AckResponse<ActionResult> {
+    const guard = this.canAct(roomId, playerId);
+    if (!guard.valid) return guard.response;
+    const { session } = guard;
+
+    session.game = {
+      ...session.game,
+      players: session.game.players.map((player) => {
+        if (player.id !== playerId) return player;
+
+        const orderedDefinitions = sortTiles(definitionsForInstances(player.handTiles));
+        const sortedIds = orderedDefinitions.map((tile) => tile.id);
+        const handTiles = [...player.handTiles].sort(
+          (left, right) => sortedIds.indexOf(left.tileId) - sortedIds.indexOf(right.tileId) || left.instanceId.localeCompare(right.instanceId)
+        );
+
+        return { ...player, handTiles };
+      })
+    };
+
+    return ok({ game: this.buildClientGameView(roomId, playerId) });
+  }
+
   lockShop(roomId: string, playerId: string): AckResponse<ActionResult> {
     const guard = this.canAct(roomId, playerId);
     if (!guard.valid) return guard.response;
@@ -360,6 +409,15 @@ export class GameSessionManager {
     session.game = {
       ...session.game,
       players: session.game.players.map((player) => (player.id === playerId ? { ...player, gold } : player))
+    };
+  }
+
+  setPlayerHandForTest(roomId: string, playerId: string, handTiles: TileInstance[]): void {
+    const session = this.sessions.get(roomId);
+    if (!session) return;
+    session.game = {
+      ...session.game,
+      players: session.game.players.map((player) => (player.id === playerId ? { ...player, handTiles } : player))
     };
   }
 

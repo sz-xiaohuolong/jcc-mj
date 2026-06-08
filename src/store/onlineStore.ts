@@ -32,6 +32,8 @@ interface OnlineState {
   sellTile: (instanceId: string) => Promise<void>;
   refreshShop: () => Promise<void>;
   lockShop: () => Promise<void>;
+  levelUp: () => Promise<void>;
+  organizeHand: () => Promise<void>;
   discardTile: (instanceId: string) => Promise<void>;
   chooseAugment: (augmentId: string) => Promise<void>;
   endTurn: () => Promise<void>;
@@ -199,6 +201,14 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
   async lockShop() {
     const roomId = get().roomId;
     if (roomId) await emitAction(CLIENT_EVENTS.gameLockShop, { roomId });
+  },
+  async levelUp() {
+    const roomId = get().roomId;
+    if (roomId) await emitAction(CLIENT_EVENTS.gameLevelUp, { roomId });
+  },
+  async organizeHand() {
+    const roomId = get().roomId;
+    if (roomId) await emitAction(CLIENT_EVENTS.gameOrganizeHand, { roomId });
   },
   async discardTile(instanceId) {
     const roomId = get().roomId;
