@@ -12,6 +12,7 @@ import type {
   GameEventLog,
   JoinRoomPayload,
   JoinRoomResult,
+  KickPlayerPayload,
   LeaveRoomPayload,
   LockShopPayload,
   OrganizeHandPayload,
@@ -20,6 +21,7 @@ import type {
   RefreshShopPayload,
   ResumePayload,
   ResumeResult,
+  RoomKickedPayload,
   RoomStateView,
   SellTilePayload,
   StartGamePayload,
@@ -31,6 +33,7 @@ export type ClientToServerEvents = {
   "room:create": (payload: CreateRoomPayload, ack: Ack<CreateRoomResult>) => void;
   "room:join": (payload: JoinRoomPayload, ack: Ack<JoinRoomResult>) => void;
   "room:leave": (payload: LeaveRoomPayload, ack: Ack<void>) => void;
+  "room:kick": (payload: KickPlayerPayload, ack: Ack<void>) => void;
   "room:ready": (payload: ReadyPayload, ack: Ack<void>) => void;
   "game:start": (payload: StartGamePayload, ack: Ack<void>) => void;
   "game:buyTile": (payload: BuyTilePayload, ack: Ack<ActionResult>) => void;
@@ -47,6 +50,7 @@ export type ClientToServerEvents = {
 
 export type ServerToClientEvents = {
   "room:state": (payload: RoomStateView) => void;
+  "room:kicked": (payload: RoomKickedPayload) => void;
   "game:state": (payload: ClientGameView) => void;
   "game:event": (payload: GameEventLog) => void;
   "game:error": (payload: GameError) => void;

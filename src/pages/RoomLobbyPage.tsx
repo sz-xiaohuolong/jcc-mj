@@ -1,4 +1,4 @@
-import { ArrowLeft, Check, Copy, Crown, Play } from "lucide-react";
+import { ArrowLeft, Check, Copy, Crown, Play, UserX } from "lucide-react";
 import { useOnlineStore } from "../store/onlineStore";
 
 export function RoomLobbyPage() {
@@ -6,6 +6,7 @@ export function RoomLobbyPage() {
   const playerId = useOnlineStore((state) => state.playerId);
   const lastError = useOnlineStore((state) => state.lastError);
   const setReady = useOnlineStore((state) => state.setReady);
+  const kickPlayer = useOnlineStore((state) => state.kickPlayer);
   const startGame = useOnlineStore((state) => state.startGame);
   const leaveRoom = useOnlineStore((state) => state.leaveRoom);
 
@@ -49,7 +50,15 @@ export function RoomLobbyPage() {
                 <strong>{player.nickname}</strong>
               </div>
               <span>{player.isAI ? "AI 补位" : player.connected ? "在线" : "离线"}</span>
-              <span>{player.isOwner ? "房主" : player.ready ? "已准备" : "未准备"}</span>
+              <div className="flex items-center justify-end gap-2">
+                <span>{player.isOwner ? "房主" : player.ready ? "已准备" : "未准备"}</span>
+                {isOwner && player.id !== playerId && !player.isAI && (
+                  <button className="danger-button" type="button" onClick={() => kickPlayer(player.id)} title={`踢出 ${player.nickname}`}>
+                    <UserX size={15} />
+                    踢出
+                  </button>
+                )}
+              </div>
             </article>
           ))}
         </div>

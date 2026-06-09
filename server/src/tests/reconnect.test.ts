@@ -23,4 +23,15 @@ describe("ConnectionManager", () => {
     expect(result.ok).toBe(false);
     expect(result.error?.code).toBe("RECONNECT_EXPIRED");
   });
+
+  it("removes all connection records for a destroyed room", () => {
+    const manager = new ConnectionManager(60_000);
+    const removedToken = manager.register("socket-a", "room-1", "player-1");
+    const keptToken = manager.register("socket-b", "room-2", "player-2");
+
+    manager.removeRoom("room-1");
+
+    expect(manager.resume("socket-c", removedToken).ok).toBe(false);
+    expect(manager.resume("socket-d", keptToken).ok).toBe(true);
+  });
 });

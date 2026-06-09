@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { augmentDefinitions } from "../data/augments";
-import { createInitialGame, discardTile, endRound, levelUpPlayer, sellTile } from "../engine/gameEngine";
+import { createInitialGame, discardTile, endRound, getLevelUpCost, levelUpPlayer, sellTile } from "../engine/gameEngine";
 import type { GameState, TileInstance } from "../types";
 import { createSeededRandom } from "../utils/random";
 
@@ -49,6 +49,25 @@ describe("game flow", () => {
 
     expect(player?.level).toBe(2);
     expect(player?.gold).toBeLessThan(game.players[0].gold);
+  });
+
+  it("applies roll-fever's level-up cost penalty", () => {
+    const rollFever = augmentDefinitions.find((augment) => augment.id === "roll-fever");
+    if (!rollFever) throw new Error("Missing roll-fever augment");
+    const game = createInitialGame({ rng: createSeededRandom(34) });
+    const baseCost = getLevelUpCost(1);
+    const blocked = {
+      ...game,
+      players: game.players.map((player) =>
+        player.id === "player" ? { ...player, gold: baseCost + 1, augments: [rollFever] } : player
+      )
+    };
+
+    const after = levelUpPlayer(blocked, "player");
+    const player = after.players.find((item) => item.id === "player");
+
+    expect(player?.level).toBe(1);
+    expect(player?.gold).toBe(baseCost + 1);
   });
 
   it("keeps the shop unchanged across round end when the player locks it", () => {
@@ -158,6 +177,7 @@ describe("game flow", () => {
 
     expect(playerEntry?.isRoundWinner).toBe(true);
     expect(playerEntry?.combatScore).toBeGreaterThan(0);
+    expect(playerEntry?.damage).toBe(0);
     expect(playerEntry?.hpAfter).toBe(playerEntry?.hpBefore);
     expect(otherWinningEntries.length).toBeGreaterThan(0);
     expect(otherWinningEntries.every((entry) => entry.damage >= 1 && entry.damage <= 5)).toBe(true);

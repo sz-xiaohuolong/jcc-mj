@@ -35,10 +35,16 @@ export interface CreateRoomPayload {
 export interface JoinRoomPayload {
   roomId: string;
   nickname: string;
+  sessionToken?: string;
 }
 
 export interface LeaveRoomPayload {
   roomId: string;
+}
+
+export interface KickPlayerPayload {
+  roomId: string;
+  targetPlayerId: string;
 }
 
 export interface ReadyPayload {
@@ -109,6 +115,11 @@ export interface RoomStateView {
   ownerId: string;
   status: "lobby" | "playing" | "finished";
   players: RoomPlayerView[];
+}
+
+export interface RoomKickedPayload {
+  roomId: string;
+  message: string;
 }
 
 export interface CreateRoomResult {

@@ -886,6 +886,7 @@ button {
 .primary-button,
 .ghost-button,
 .control-button,
+.danger-button,
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -920,9 +921,20 @@ button {
   padding: 0;
 }
 
+.danger-button {
+  min-height: 32px;
+  padding: 0 10px;
+  border-color: rgba(255, 202, 202, 0.84);
+  background: linear-gradient(180deg, #ffd7d7, #ee8e94);
+  color: #7b1f28;
+  box-shadow: 0 4px 0 rgba(127, 37, 48, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  font-size: 13px;
+}
+
 .primary-button:hover,
 .ghost-button:hover,
 .control-button:hover,
+.danger-button:hover,
 .icon-button:hover {
   transform: translateY(-2px);
   border-color: rgba(255, 224, 137, 0.94);

@@ -123,4 +123,35 @@ describe("gameStore refresh economy", () => {
     expect(player?.benchTiles).toHaveLength(0);
     expect(state.lastError).toContain("手牌已满");
   });
+
+  it("keeps a locked single-player shop intact after AI turns and round settlement", () => {
+    const current = useGameStore.getState().game;
+    const ai = current.players.find((player) => player.isAI);
+    if (!ai) throw new Error("expected an AI player");
+    const attractiveTile = current.tilePool.find((tile) => tile.tileId === ai.handTiles[0].tileId);
+    if (!attractiveTile) throw new Error("expected a matching AI shop tile");
+    const lockedShop = [attractiveTile, ...current.shop.slice(0, 4)];
+    const beforeShopIds = lockedShop.map((tile) => tile.instanceId);
+
+    useGameStore.setState({
+      game: {
+        ...current,
+        shop: lockedShop,
+        tilePool: current.tilePool.filter((tile) => tile.instanceId !== attractiveTile.instanceId),
+        players: current.players.map((player) =>
+          player.id === "player"
+            ? { ...player, lockedShop: true }
+            : player.id === ai.id
+              ? { ...player, gold: 20 }
+              : player
+        )
+      }
+    });
+
+    useGameStore.getState().endTurn();
+    const after = useGameStore.getState().game;
+
+    expect(after.players.find((player) => player.id === "player")?.lockedShop).toBe(true);
+    expect(after.shop.map((tile) => tile.instanceId)).toEqual(beforeShopIds);
+  });
 });

@@ -64,14 +64,45 @@ export class RoomManager {
     return { room, player };
   }
 
-  joinRoom({ roomId, nickname, socketId }: { roomId: string; nickname: string; socketId?: string }): AckResponse<JoinRoomResult & { player: RoomPlayer }> {
+  joinRoom({ roomId, nickname, socketId, sessionToken }: { roomId: string; nickname: string; socketId?: string; sessionToken?: string }): AckResponse<JoinRoomResult & { player: RoomPlayer }> {
     const room = this.rooms.get(roomId.toUpperCase());
+    const normalizedNickname = nickname.trim() || "玩家";
 
     if (!room) {
       return fail("ROOM_NOT_FOUND", "房间不存在");
     }
 
+    const existingSessionPlayer = sessionToken ? room.players.find((player) => !player.isAI && player.sessionToken === sessionToken) : undefined;
+
+    if (existingSessionPlayer) {
+      existingSessionPlayer.connected = true;
+      existingSessionPlayer.socketId = socketId;
+      existingSessionPlayer.disconnectedAt = undefined;
+      return ok({
+        room: toRoomStateView(room),
+        player: existingSessionPlayer,
+        playerId: existingSessionPlayer.id,
+        sessionToken: existingSessionPlayer.sessionToken
+      });
+    }
+
     if (room.status !== "lobby") {
+      const reconnectingPlayer = room.players.find(
+        (player) => !player.isAI && !player.connected && (player.sessionToken === sessionToken || player.nickname === normalizedNickname)
+      );
+
+      if (reconnectingPlayer) {
+        reconnectingPlayer.connected = true;
+        reconnectingPlayer.socketId = socketId;
+        reconnectingPlayer.disconnectedAt = undefined;
+        return ok({
+          room: toRoomStateView(room),
+          player: reconnectingPlayer,
+          playerId: reconnectingPlayer.id,
+          sessionToken: reconnectingPlayer.sessionToken
+        });
+      }
+
       return fail("GAME_ALREADY_STARTED", "游戏已经开始");
     }
 
@@ -81,7 +112,7 @@ export class RoomManager {
 
     const player: RoomPlayer = {
       id: randomId("player"),
-      nickname: nickname.trim() || "玩家",
+      nickname: normalizedNickname,
       isOwner: false,
       isAI: false,
       ready: false,
@@ -92,6 +123,15 @@ export class RoomManager {
 
     room.players.push(player);
     return ok({ room: toRoomStateView(room), player, playerId: player.id, sessionToken: player.sessionToken });
+  }
+
+  destroyRoom(roomId: string): AckResponse<void> {
+    if (!this.rooms.has(roomId)) {
+      return fail("ROOM_NOT_FOUND", "房间不存在");
+    }
+
+    this.rooms.delete(roomId);
+    return ok(undefined);
   }
 
   getRoom(roomId: string): Room | undefined {
@@ -121,6 +161,18 @@ export class RoomManager {
       return fail("ROOM_NOT_FOUND", "房间不存在");
     }
 
+    if (room.status === "playing") {
+      const player = room.players.find((item) => item.id === playerId);
+      if (!player) {
+        return fail("PLAYER_NOT_FOUND", "玩家不存在");
+      }
+
+      player.connected = false;
+      player.socketId = undefined;
+      player.disconnectedAt = Date.now();
+      return ok(undefined);
+    }
+
     room.players = room.players.filter((player) => player.id !== playerId);
 
     if (room.players.length === 0) {
@@ -134,6 +186,35 @@ export class RoomManager {
     }
 
     return ok(undefined);
+  }
+
+  kickPlayer(roomId: string, ownerId: string, targetPlayerId: string): AckResponse<RoomPlayer> {
+    const room = this.rooms.get(roomId);
+
+    if (!room) {
+      return fail("ROOM_NOT_FOUND", "房间不存在");
+    }
+    if (room.status !== "lobby") {
+      return fail("GAME_ALREADY_STARTED", "游戏已经开始");
+    }
+    if (room.ownerId !== ownerId) {
+      return fail("NOT_ROOM_OWNER", "只有房主可以踢出玩家");
+    }
+    if (ownerId === targetPlayerId) {
+      return fail("INVALID_ACTION", "房主不能踢出自己");
+    }
+
+    const target = room.players.find((player) => player.id === targetPlayerId);
+
+    if (!target) {
+      return fail("PLAYER_NOT_FOUND", "玩家不存在");
+    }
+    if (target.isAI) {
+      return fail("INVALID_ACTION", "不能踢出 AI 补位");
+    }
+
+    room.players = room.players.filter((player) => player.id !== targetPlayerId);
+    return ok(target);
   }
 
   markPlaying(roomId: string): AckResponse<void> {

@@ -64,4 +64,30 @@ export class ConnectionManager {
     const token = this.tokenBySocket.get(socketId);
     return token ? this.recordsByToken.get(token) : undefined;
   }
+
+  removeRoom(roomId: string): void {
+    for (const [token, record] of this.recordsByToken.entries()) {
+      if (record.roomId !== roomId) {
+        continue;
+      }
+
+      this.recordsByToken.delete(token);
+      if (record.socketId) {
+        this.tokenBySocket.delete(record.socketId);
+      }
+    }
+  }
+
+  removePlayer(roomId: string, playerId: string): void {
+    for (const [token, record] of this.recordsByToken.entries()) {
+      if (record.roomId !== roomId || record.playerId !== playerId) {
+        continue;
+      }
+
+      this.recordsByToken.delete(token);
+      if (record.socketId) {
+        this.tokenBySocket.delete(record.socketId);
+      }
+    }
+  }
 }

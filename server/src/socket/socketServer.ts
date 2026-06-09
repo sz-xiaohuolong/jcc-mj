@@ -67,6 +67,9 @@ function startTurnTimer(io: OnlineServer, roomId: string) {
       gameSessionManager.expireTurn(roomId);
       stopTurnTimer(roomId);
       emitGame(io, roomId);
+      if (cleanupRoomIfGameOver(io, roomId)) {
+        return;
+      }
       startTurnTimer(io, roomId);
     }, Math.max(0, session.deadlineAt - Date.now()))
   );
@@ -78,6 +81,26 @@ function ackAndBroadcast(io: OnlineServer, roomId: string, result: AckResponse<A
     emitRoom(io, roomId);
     emitGame(io, roomId);
   }
+}
+
+function cleanupRoomIfGameOver(io: OnlineServer, roomId: string): boolean {
+  if (!gameSessionManager.isGameOver(roomId)) {
+    return false;
+  }
+
+  const room = roomManager.getRoom(roomId);
+  if (room) {
+    room.status = "finished";
+    emitGame(io, roomId);
+    emitRoom(io, roomId);
+  }
+
+  stopTurnTimer(roomId);
+  gameSessionManager.deleteSession(roomId);
+  roomManager.destroyRoom(roomId);
+  connectionManager.removeRoom(roomId);
+  io.in(roomId).socketsLeave(roomId);
+  return true;
 }
 
 function requireConnection(socket: OnlineSocket): AckResponse<{ roomId: string; playerId: string }> {
@@ -100,7 +123,7 @@ export function setupSocketServer(io: OnlineServer) {
     });
 
     socket.on(CLIENT_EVENTS.roomJoin, (payload, ack) => {
-      const result = roomManager.joinRoom({ roomId: payload.roomId, nickname: payload.nickname, socketId: socket.id });
+      const result = roomManager.joinRoom({ roomId: payload.roomId, nickname: payload.nickname, socketId: socket.id, sessionToken: payload.sessionToken });
       if (!result.ok || !result.data) {
         ack({ ok: false, error: result.error });
         return;
@@ -116,6 +139,36 @@ export function setupSocketServer(io: OnlineServer) {
       const result = record ? roomManager.leaveRoom(payload.roomId, record.playerId) : fail<void>("PLAYER_NOT_FOUND", "连接未绑定玩家");
       socket.leave(payload.roomId);
       ack(result);
+      emitRoom(io, payload.roomId);
+    });
+
+    socket.on(CLIENT_EVENTS.roomKick, (payload, ack) => {
+      const record = currentPlayer(socket);
+
+      if (!record) {
+        ack(fail("PLAYER_NOT_FOUND", "连接未绑定玩家"));
+        return;
+      }
+
+      const result = roomManager.kickPlayer(payload.roomId, record.playerId, payload.targetPlayerId);
+
+      if (!result.ok || !result.data) {
+        ack({ ok: false, error: result.error });
+        return;
+      }
+
+      const kickedPlayer = result.data;
+      connectionManager.removePlayer(payload.roomId, kickedPlayer.id);
+
+      if (kickedPlayer.socketId) {
+        io.to(kickedPlayer.socketId).emit(SERVER_EVENTS.roomKicked, {
+          roomId: payload.roomId,
+          message: "你已被房主移出房间"
+        });
+        io.sockets.sockets.get(kickedPlayer.socketId)?.leave(payload.roomId);
+      }
+
+      ack(ok(undefined));
       emitRoom(io, payload.roomId);
     });
 
@@ -198,6 +251,9 @@ export function setupSocketServer(io: OnlineServer) {
       const result = gameSessionManager.endTurn(payload.roomId, record.data.playerId);
       ackAndBroadcast(io, payload.roomId, result, ack);
       const after = gameSessionManager.getSession(payload.roomId);
+      if (result.ok && cleanupRoomIfGameOver(io, payload.roomId)) {
+        return;
+      }
       if (result.ok && after && after.game.round !== beforeRound) {
         startTurnTimer(io, payload.roomId);
       }

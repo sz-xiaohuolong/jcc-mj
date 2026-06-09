@@ -1,4 +1,4 @@
-import type { RandomSource, TileDefinition, TileInstance, TileWithDefinition } from "../types";
+import type { RandomSource, Suit, TileDefinition, TileInstance, TileWithDefinition } from "../types";
 import { randomInt, shuffle } from "../utils/random";
 
 const levelOdds: Record<number, Array<{ cost: TileDefinition["cost"]; chance: number }>> = {
@@ -64,13 +64,15 @@ export function refreshShop({
   level,
   rng,
   highCostBias = 0,
-  tripletBias = 0
+  tripletBias = 0,
+  suitBias
 }: {
   pool: TileWithDefinition[];
   level: number;
   rng: RandomSource;
   highCostBias?: number;
   tripletBias?: number;
+  suitBias?: { suit: Suit; chance: number };
 }): { shop: TileWithDefinition[]; pool: TileWithDefinition[] } {
   const nextPool = [...pool];
   const shop: TileWithDefinition[] = [];
@@ -80,8 +82,13 @@ export function refreshShop({
     let candidates = nextPool.filter((tile) => tile.definition.cost === desiredCost);
 
     if (tripletBias > 0 && rng.next() < tripletBias) {
-      const bloodblade = nextPool.filter((tile) => tile.definition.traits.includes("bloodblade"));
+      const bloodblade = candidates.filter((tile) => tile.definition.traits.includes("bloodblade"));
       candidates = bloodblade.length > 0 ? bloodblade : candidates;
+    }
+
+    if (suitBias && rng.next() < suitBias.chance) {
+      const matchingSuit = candidates.filter((tile) => tile.definition.suit === suitBias.suit);
+      candidates = matchingSuit.length > 0 ? matchingSuit : candidates;
     }
 
     if (candidates.length === 0) {

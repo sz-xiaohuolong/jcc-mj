@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { tileDefinitions } from "../data/tiles";
 import { applyImmediateAugmentEffect } from "../engine/augmentEffects";
-import { chooseAugmentForAI, createAugmentChoices, getRefreshCostModifier } from "../engine/augmentEngine";
+import { chooseAugmentForAI, createAugmentChoices, getRefreshCostModifier, getRefreshCostRefund } from "../engine/augmentEngine";
 import { runAITurn } from "../engine/aiEngine";
 import {
   buyTile,
@@ -64,6 +64,25 @@ function nextRng(seed: number) {
 
 function playerOf(game: GameState): PlayerState | undefined {
   return game.players.find((player) => player.id === game.currentPlayerId);
+}
+
+function runAITurnWithPrivateShop(game: GameState, playerId: string, seed: number): GameState {
+  const originalShop = game.shop;
+  const originalCurrentPlayerId = game.currentPlayerId;
+  const shopGame = refreshGameShop({ ...game, currentPlayerId: playerId, shop: [] }, nextRng(seed));
+  const aiGame = runAITurn({
+    game: shopGame,
+    playerId,
+    definitions: tileDefinitions,
+    rng: nextRng(seed + 17)
+  });
+
+  return {
+    ...aiGame,
+    currentPlayerId: originalCurrentPlayerId,
+    shop: originalShop,
+    tilePool: [...aiGame.tilePool, ...aiGame.shop]
+  };
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -131,15 +150,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return state;
       }
 
+      const refreshRng = nextRng(state.seed);
+      const finalCost = cost - getRefreshCostRefund(player, cost, refreshRng);
       const players = state.game.players.map((item) =>
-        item.id === player.id ? { ...item, gold: item.gold - cost, hasRefreshedThisRound: true } : item
+        item.id === player.id ? { ...item, gold: item.gold - finalCost, hasRefreshedThisRound: true } : item
       );
-      const refreshed = refreshGameShop({ ...state.game, players }, nextRng(state.seed));
+      const refreshed = refreshGameShop({ ...state.game, players }, refreshRng);
 
       return {
         game: {
           ...refreshed,
-          logs: [...refreshed.logs, createLog(refreshed.round, `刷新商店，花费 ${cost} 金币。`, "info")]
+          logs: [...refreshed.logs, createLog(refreshed.round, `刷新商店，花费 ${finalCost} 金币。`, "info")]
         }
       };
     });
@@ -235,12 +256,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
       let game = state.game;
 
       for (const ai of game.players.filter((player) => player.isAI && player.isAlive)) {
-        game = runAITurn({
-          game,
-          playerId: ai.id,
-          definitions: tileDefinitions,
-          rng: nextRng(state.seed + game.round)
-        });
+        game = runAITurnWithPrivateShop(game, ai.id, state.seed + game.round + ai.id.length);
       }
 
       return { game: endRound(game, nextRng(state.seed + game.round + 9)) };

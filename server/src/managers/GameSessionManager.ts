@@ -1,7 +1,7 @@
 import { augmentDefinitions } from "../../../src/data/augments";
 import { tileDefinitions } from "../../../src/data/tiles";
 import { applyImmediateAugmentEffect } from "../../../src/engine/augmentEffects";
-import { chooseAugmentForAI, createAugmentChoices, getRefreshCostModifier } from "../../../src/engine/augmentEngine";
+import { chooseAugmentForAI, createAugmentChoices, getLevelUpCostModifier, getRefreshCostModifier, getRefreshCostRefund, getSuitFocusShopBias } from "../../../src/engine/augmentEngine";
 import { runAITurn } from "../../../src/engine/aiEngine";
 import { createInitialGame, createLog, definitionsForInstances, endRound, getLevelUpCost, rebuildPool } from "../../../src/engine/gameEngine";
 import { refreshShop } from "../../../src/engine/shopEngine";
@@ -76,13 +76,14 @@ export class GameSessionManager {
     const playerShops: Record<string, TileInstance[]> = {};
 
     for (const player of players) {
-      const result = refreshShop({
-        pool,
-        level: player.level,
-        rng: rng(seed + player.id.length + Object.keys(playerShops).length),
-        highCostBias: initial.city?.modifiers.highCostShopBias ?? 0,
-        tripletBias: initial.city?.modifiers.tripletShopBias ?? 0
-      });
+    const result = refreshShop({
+      pool,
+      level: player.level,
+      rng: rng(seed + player.id.length + Object.keys(playerShops).length),
+      highCostBias: initial.city?.modifiers.highCostShopBias ?? 0,
+      tripletBias: initial.city?.modifiers.tripletShopBias ?? 0,
+      suitBias: getSuitFocusShopBias(player)
+    });
       pool = result.pool;
       playerShops[player.id] = toTileInstances(result.shop);
     }
@@ -121,6 +122,14 @@ export class GameSessionManager {
 
   getSession(roomId: string): GameSession | undefined {
     return this.sessions.get(roomId);
+  }
+
+  deleteSession(roomId: string): void {
+    this.sessions.delete(roomId);
+  }
+
+  isGameOver(roomId: string): boolean {
+    return this.sessions.get(roomId)?.game.phase === "game_over";
   }
 
   buildClientGameView(roomId: string, playerId: string): ClientGameView | undefined {
@@ -256,20 +265,23 @@ export class GameSessionManager {
 
     const currentShop = session.playerShops[playerId] ?? [];
     const pool = rebuildPool([...session.game.tilePool, ...currentShop]);
+    const refreshRng = rng(session.rngSeed + session.game.round + playerId.length + Date.now());
+    const finalCost = cost - getRefreshCostRefund(player, cost, refreshRng);
     const result = refreshShop({
       pool,
       level: player.level,
-      rng: rng(session.rngSeed + session.game.round + playerId.length + Date.now()),
+      rng: refreshRng,
       highCostBias: session.game.city?.modifiers.highCostShopBias ?? 0,
-      tripletBias: session.game.city?.modifiers.tripletShopBias ?? 0
+      tripletBias: session.game.city?.modifiers.tripletShopBias ?? 0,
+      suitBias: getSuitFocusShopBias(player)
     });
 
     session.playerShops[playerId] = toTileInstances(result.shop);
     session.game = {
       ...session.game,
       tilePool: toTileInstances(result.pool),
-      players: session.game.players.map((item) => (item.id === playerId ? { ...item, gold: item.gold - cost, hasRefreshedThisRound: true } : item)),
-      logs: [...session.game.logs, createLog(session.game.round, `${player.name} 刷新商店，花费 ${cost} 金币。`)]
+      players: session.game.players.map((item) => (item.id === playerId ? { ...item, gold: item.gold - finalCost, hasRefreshedThisRound: true } : item)),
+      logs: [...session.game.logs, createLog(session.game.round, `${player.name} 刷新商店，花费 ${finalCost} 金币。`)]
     };
 
     return ok({ game: this.buildClientGameView(roomId, playerId) });
@@ -284,7 +296,7 @@ export class GameSessionManager {
       return fail("INVALID_ACTION", "已经达到最高等级");
     }
 
-    const cost = getLevelUpCost(player.level);
+    const cost = getLevelUpCost(player.level) + getLevelUpCostModifier(player);
     if (player.gold < cost) {
       return fail("NOT_ENOUGH_GOLD", "金币不足");
     }
@@ -464,16 +476,22 @@ export class GameSessionManager {
     let game = session.game;
     for (const ai of game.players.filter((player) => player.isAI && player.isAlive)) {
       game = runAITurn({ game: { ...game, currentPlayerId: ai.id, shop: session.playerShops[ai.id] ?? [] }, playerId: ai.id, definitions: tileDefinitions, rng: rng(session.rngSeed + game.round + ai.id.length) });
+      session.playerShops[ai.id] = game.shop;
+      game = { ...game, shop: [] };
     }
     const settled = endRound({ ...game, shop: [] }, rng(session.rngSeed + game.round + 400));
-    let pool = rebuildPool([...settled.tilePool, ...settled.shop, ...Object.values(session.playerShops).flat()]);
+    const shopsToReturn = Object.entries(session.playerShops).flatMap(([playerId, shop]) => {
+      const player = settled.players.find((item) => item.id === playerId);
+      return player?.lockedShop && player.isAlive ? [] : shop;
+    });
+    let pool = rebuildPool([...settled.tilePool, ...settled.shop, ...shopsToReturn]);
     const playerShops: Record<string, TileInstance[]> = {};
     for (const player of settled.players) {
       if (player.lockedShop && session.playerShops[player.id]) {
         playerShops[player.id] = session.playerShops[player.id];
         continue;
       }
-      const result = refreshShop({ pool, level: player.level, rng: rng(session.rngSeed + settled.round + player.id.length) });
+      const result = refreshShop({ pool, level: player.level, rng: rng(session.rngSeed + settled.round + player.id.length), suitBias: getSuitFocusShopBias(player) });
       pool = result.pool;
       playerShops[player.id] = toTileInstances(result.shop);
     }

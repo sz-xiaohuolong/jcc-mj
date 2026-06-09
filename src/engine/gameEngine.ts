@@ -2,7 +2,7 @@ import { augmentDefinitions } from "../data/augments";
 import { tileDefinitions } from "../data/tiles";
 import type { GameLog, GameState, PlayerState, RandomSource, TileDefinition, TileInstance, TileWithDefinition } from "../types";
 import { pickOne } from "../utils/random";
-import { createAugmentChoices, getInterestCapBonus, shouldOfferAugment } from "./augmentEngine";
+import { createAugmentChoices, getAugmentRoundGoldBonus, getInterestCapBonus, getLevelUpCostModifier, getSuitFocusShopBias, shouldOfferAugment } from "./augmentEngine";
 import { chooseRandomCity } from "./cityEngine";
 import { settlePlayers } from "./damageEngine";
 import { calculateActiveTraits } from "./traitEngine";
@@ -129,7 +129,8 @@ export function refreshGameShop(game: GameState, rng: RandomSource): GameState {
     level: player?.level ?? 1,
     rng,
     highCostBias: game.city?.modifiers.highCostShopBias ?? 0,
-    tripletBias: game.city?.modifiers.tripletShopBias ?? 0
+    tripletBias: game.city?.modifiers.tripletShopBias ?? 0,
+    suitBias: player ? getSuitFocusShopBias(player) : undefined
   });
 
   return {
@@ -240,7 +241,7 @@ export function levelUpPlayer(game: GameState, playerId: string): GameState {
       return player;
     }
 
-    const cost = getLevelUpCost(player.level);
+    const cost = getLevelUpCost(player.level) + getLevelUpCostModifier(player);
 
     if (player.gold < cost) {
       return player;
@@ -270,16 +271,12 @@ export function endRound(game: GameState, rng: RandomSource): GameState {
     const entry = settlement.find((item) => item.playerId === player.id);
     const interestCap = 5 + (game.city?.modifiers.interestCapBonus ?? 0) + getInterestCapBonus(player);
     const interest = calculateInterest(player.gold, interestCap);
-    const traitGold =
-      player.augments.some((augment) => augment.id === "trait-tracker") &&
-      player.activeTraits.filter((trait) => trait.tier > 0).length >= 3
-        ? 2
-        : 0;
+    const augmentGold = getAugmentRoundGoldBonus(player, definitionsForInstances(player.handTiles));
 
     return {
       ...player,
       hp: entry?.hpAfter ?? player.hp,
-      gold: player.gold + 5 + interest + traitGold,
+      gold: player.gold + 5 + interest + augmentGold,
       isAlive: (entry?.hpAfter ?? player.hp) > 0,
       isWinning: entry?.status === "winning",
       hasRefreshedThisRound: false,

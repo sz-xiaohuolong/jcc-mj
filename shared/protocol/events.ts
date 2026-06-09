@@ -2,6 +2,7 @@ export const CLIENT_EVENTS = {
   roomCreate: "room:create",
   roomJoin: "room:join",
   roomLeave: "room:leave",
+  roomKick: "room:kick",
   roomReady: "room:ready",
   gameStart: "game:start",
   gameBuyTile: "game:buyTile",
@@ -18,6 +19,7 @@ export const CLIENT_EVENTS = {
 
 export const SERVER_EVENTS = {
   roomState: "room:state",
+  roomKicked: "room:kicked",
   gameState: "game:state",
   gameEvent: "game:event",
   gameError: "game:error",

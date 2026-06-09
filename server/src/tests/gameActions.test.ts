@@ -13,6 +13,21 @@ function createStartedSession() {
   return { roomManager, sessionManager, session, owner: created.player, second: joined.data!.player };
 }
 
+function allSessionTileInstanceIds(session: ReturnType<GameSessionManager["getSession"]>): string[] {
+  if (!session) return [];
+
+  return [
+    ...session.game.tilePool.map((tile) => tile.instanceId),
+    ...session.game.shop.map((tile) => tile.instanceId),
+    ...session.game.players.flatMap((player) => [
+      ...player.handTiles.map((tile) => tile.instanceId),
+      ...player.benchTiles.map((tile) => tile.instanceId),
+      ...player.discardTiles.map((tile) => tile.instanceId)
+    ]),
+    ...Object.values(session.playerShops).flatMap((shop) => shop.map((tile) => tile.instanceId))
+  ];
+}
+
 describe("GameSessionManager", () => {
   it("initializes a four-player game and filters private views per player", () => {
     const { sessionManager, session, owner, second } = createStartedSession();
@@ -81,6 +96,49 @@ describe("GameSessionManager", () => {
     expect(result.ok).toBe(true);
     expect(after.privatePlayer.gold).toBeLessThan(before.privatePlayer.gold);
     expect(after.privatePlayer.shop).toHaveLength(5);
+  });
+
+  it("keeps tile instances unique after online round settlement", () => {
+    const { sessionManager, session, owner, second } = createStartedSession();
+    const firstEnd = sessionManager.endTurn(session.roomId, owner.id);
+    const secondEnd = sessionManager.endTurn(session.roomId, second.id);
+    const after = sessionManager.getSession(session.roomId)!;
+    const ids = allSessionTileInstanceIds(after);
+
+    expect(firstEnd.ok).toBe(true);
+    expect(secondEnd.ok).toBe(true);
+    expect(after.game.round).toBe(2);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(Object.values(after.playerShops).every((shop) => shop.length === 5)).toBe(true);
+  });
+
+  it("keeps locked shop tiles out of other players' shops across refreshes and settlement", () => {
+    const { sessionManager, session, owner, second } = createStartedSession();
+    const ownerView = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+    const lockedIds = ownerView.privatePlayer.shop.map((tile) => tile.instanceId);
+
+    const lockResult = sessionManager.lockShop(session.roomId, owner.id);
+    for (let index = 0; index < 6; index += 1) {
+      sessionManager.setPlayerGoldForTest(session.roomId, second.id, 99);
+      const refreshResult = sessionManager.refreshShop(session.roomId, second.id);
+      expect(refreshResult.ok).toBe(true);
+      const secondView = sessionManager.buildClientGameView(session.roomId, second.id)!;
+      expect(secondView.privatePlayer.shop).toHaveLength(5);
+      expect(secondView.privatePlayer.shop.some((tile) => lockedIds.includes(tile.instanceId))).toBe(false);
+    }
+
+    sessionManager.endTurn(session.roomId, owner.id);
+    sessionManager.endTurn(session.roomId, second.id);
+    const after = sessionManager.getSession(session.roomId)!;
+    const ownerAfter = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+    const secondAfter = sessionManager.buildClientGameView(session.roomId, second.id)!;
+    const ids = allSessionTileInstanceIds(after);
+
+    expect(lockResult.ok).toBe(true);
+    expect(ownerAfter.privatePlayer.shop.map((tile) => tile.instanceId)).toEqual(lockedIds);
+    expect(secondAfter.privatePlayer.shop).toHaveLength(5);
+    expect(secondAfter.privatePlayer.shop.some((tile) => lockedIds.includes(tile.instanceId))).toBe(false);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 
   it("lets a player spend gold to level up", () => {

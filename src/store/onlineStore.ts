@@ -28,6 +28,7 @@ interface OnlineState {
   joinRoom: (roomId: string) => Promise<void>;
   leaveRoom: () => void;
   setReady: (ready: boolean) => Promise<void>;
+  kickPlayer: (targetPlayerId: string) => Promise<void>;
   startGame: () => Promise<void>;
   buyTile: (instanceId: string) => Promise<void>;
   sellTile: (instanceId: string) => Promise<void>;
@@ -64,6 +65,17 @@ function installSocketHandlers(socket: OnlineSocket) {
   });
   socket.on(SERVER_EVENTS.roomState, (roomState) => {
     useOnlineStore.setState({ roomState, roomId: roomState.id });
+  });
+  socket.on(SERVER_EVENTS.roomKicked, (payload) => {
+    localStorage.removeItem(sessionKey);
+    useOnlineStore.setState({
+      roomId: undefined,
+      roomState: undefined,
+      gameView: undefined,
+      sessionToken: undefined,
+      lastError: payload.message
+    });
+    useGameStore.setState({ view: "online-home" });
   });
   socket.on(SERVER_EVENTS.gameState, (gameView) => {
     useOnlineStore.setState({ gameView });
@@ -151,7 +163,8 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
   async joinRoom(roomId) {
     const socket = await getSocket();
     try {
-      const data = await ackToPromise<JoinRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomJoin, { roomId: roomId.toUpperCase(), nickname: get().nickname }, ack));
+      const sessionToken = get().sessionToken ?? localStorage.getItem(sessionKey) ?? undefined;
+      const data = await ackToPromise<JoinRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomJoin, { roomId: roomId.toUpperCase(), nickname: get().nickname, sessionToken }, ack));
       if (!data) return;
       localStorage.setItem(sessionKey, data.sessionToken);
       set({ playerId: data.playerId, sessionToken: data.sessionToken, roomId: data.room.id, roomState: data.room });
@@ -174,6 +187,12 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
     const roomId = get().roomId;
     if (!roomId) return;
     await emitAction(CLIENT_EVENTS.roomReady, { roomId, ready });
+  },
+
+  async kickPlayer(targetPlayerId) {
+    const roomId = get().roomId;
+    if (!roomId) return;
+    await emitAction(CLIENT_EVENTS.roomKick, { roomId, targetPlayerId });
   },
 
   async startGame() {

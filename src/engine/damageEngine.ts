@@ -92,9 +92,10 @@ export function calculateWinningCombatScore({
 function defenseReduction(player: PlayerState, distance: number): number {
   const shieldTier = player.activeTraits.find((trait) => trait.id === "shieldwall")?.tier ?? 0;
   const lowHpReduction = player.augments.some((augment) => augment.id === "last-stand") && player.hp < 35 ? 0.3 : 0;
+  const pairMasterReduction = player.augments.some((augment) => augment.id === "pair-master") && distance <= 2 ? 0.25 : 0;
   const readyReduction = distance <= 2 ? shieldTier * 0.08 : 0;
 
-  return Math.min(0.55, lowHpReduction + readyReduction);
+  return Math.min(0.55, lowHpReduction + pairMasterReduction + readyReduction);
 }
 
 export function settlePlayer({
@@ -217,7 +218,7 @@ export function settlePlayers({
     }
 
     if (isTiedWithBest(entry)) {
-      return { ...entry, isRoundWinner: true, roundRank: 1 };
+      return { ...entry, damage: 0, hpAfter: entry.hpBefore, isRoundWinner: true, roundRank: 1 };
     }
 
     const damage = Math.min(5, Math.max(1, best.combatScore - entry.combatScore));
