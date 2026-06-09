@@ -1,4 +1,5 @@
-import { BookOpen, LibraryBig, Play, RadioTower } from "lucide-react";
+import { BookOpen, Play, RadioTower } from "lucide-react";
+import { SoundSettingsButton } from "../components/SoundSettingsButton";
 import { useGameStore } from "../store/gameStore";
 
 export function HomePage() {
@@ -8,6 +9,9 @@ export function HomePage() {
 
   return (
     <main className="home-screen">
+      <div className="home-sound-settings">
+        <SoundSettingsButton />
+      </div>
       <section className="home-hero">
         <div className="mahjong-mark" aria-hidden="true">
           雀
@@ -29,10 +33,6 @@ export function HomePage() {
           <button className="ghost-button" type="button" onClick={openRules}>
             <BookOpen size={18} />
             规则说明
-          </button>
-          <button className="ghost-button" type="button" onClick={openRules}>
-            <LibraryBig size={18} />
-            图鉴入口
           </button>
         </div>
       </section>

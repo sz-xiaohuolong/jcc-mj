@@ -3,6 +3,9 @@ import { create } from "zustand";
 import { CLIENT_EVENTS, SERVER_EVENTS } from "../../shared/protocol/events";
 import type { ClientToServerEvents, ServerToClientEvents } from "../../shared/protocol/socketTypes";
 import type { ClientGameView, CreateRoomResult, GameError, JoinRoomResult, RoomStateView } from "../../shared/types/network";
+import { playGameSound } from "../audio/playGameSound";
+import { playSettlementSounds } from "../audio/settlementSound";
+import type { SoundKey } from "../audio/soundAssets";
 import { resolveOnlineServerUrl } from "../utils/network";
 import { useGameStore } from "./gameStore";
 
@@ -80,6 +83,15 @@ function installSocketHandlers(socket: OnlineSocket) {
   socket.on(SERVER_EVENTS.gameState, (gameView) => {
     useOnlineStore.setState({ gameView });
     useGameStore.setState({ view: "online-game" });
+    const playerId = useOnlineStore.getState().playerId ?? gameView.privatePlayer.playerId;
+    playSettlementSounds({
+      scope: "online",
+      round: gameView.public.round,
+      phase: gameView.public.phase,
+      currentPlayerId: playerId,
+      winnerId: gameView.public.winnerId,
+      lastSettlement: gameView.public.lastSettlement
+    });
   });
   socket.on(SERVER_EVENTS.gameError, (error) => {
     useOnlineStore.setState({ lastError: error.message });
@@ -95,12 +107,16 @@ async function getSocket(): Promise<OnlineSocket> {
   return state.connect();
 }
 
-async function emitAction(event: keyof ClientToServerEvents, payload: { roomId: string; [key: string]: unknown }) {
+async function emitAction(event: keyof ClientToServerEvents, payload: { roomId: string; [key: string]: unknown }, successSound?: SoundKey) {
   const socket = await getSocket();
+  playGameSound("uiClick");
   try {
     await ackToPromise((ack) => {
       socket.emit(event, payload as never, ack as never);
     });
+    if (successSound) {
+      playGameSound(successSound);
+    }
   } catch (error) {
     useOnlineStore.setState({ lastError: error instanceof Error ? error.message : "操作失败" });
   }
@@ -149,6 +165,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
 
   async createRoom() {
     const socket = await getSocket();
+    playGameSound("uiClick");
     try {
       const data = await ackToPromise<CreateRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomCreate, { nickname: get().nickname }, ack));
       if (!data) return;
@@ -162,6 +179,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
 
   async joinRoom(roomId) {
     const socket = await getSocket();
+    playGameSound("uiClick");
     try {
       const sessionToken = get().sessionToken ?? localStorage.getItem(sessionKey) ?? undefined;
       const data = await ackToPromise<JoinRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomJoin, { roomId: roomId.toUpperCase(), nickname: get().nickname, sessionToken }, ack));
@@ -175,6 +193,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
   },
 
   leaveRoom() {
+    playGameSound("uiClick");
     const { socket, roomId } = get();
     if (socket && roomId) {
       socket.emit(CLIENT_EVENTS.roomLeave, { roomId }, () => undefined);
@@ -199,6 +218,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
     const roomId = get().roomId;
     if (!roomId) return;
     const socket = await getSocket();
+    playGameSound("uiClick");
     try {
       await ackToPromise((ack) => socket.emit(CLIENT_EVENTS.gameStart, { roomId }, ack));
     } catch (error) {
@@ -208,38 +228,38 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
 
   async buyTile(instanceId) {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameBuyTile, { roomId, instanceId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameBuyTile, { roomId, instanceId }, "tileBuy");
   },
   async sellTile(instanceId) {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameSellTile, { roomId, instanceId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameSellTile, { roomId, instanceId }, "tileSell");
   },
   async refreshShop() {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameRefreshShop, { roomId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameRefreshShop, { roomId }, "shopRefresh");
   },
   async lockShop() {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameLockShop, { roomId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameLockShop, { roomId }, "shopLock");
   },
   async levelUp() {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameLevelUp, { roomId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameLevelUp, { roomId }, "levelUp");
   },
   async organizeHand() {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameOrganizeHand, { roomId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameOrganizeHand, { roomId }, "handSort");
   },
   async discardTile(instanceId) {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameDiscardTile, { roomId, instanceId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameDiscardTile, { roomId, instanceId }, "tileSell");
   },
   async chooseAugment(augmentId) {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameChooseAugment, { roomId, augmentId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameChooseAugment, { roomId, augmentId }, "augmentPick");
   },
   async endTurn() {
     const roomId = get().roomId;
-    if (roomId) await emitAction(CLIENT_EVENTS.gameEndTurn, { roomId });
+    if (roomId) await emitAction(CLIENT_EVENTS.gameEndTurn, { roomId }, "turnEnd");
   }
 }));

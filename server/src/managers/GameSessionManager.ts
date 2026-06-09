@@ -6,12 +6,14 @@ import { runAITurn } from "../../../src/engine/aiEngine";
 import { createInitialGame, createLog, definitionsForInstances, endRound, getLevelUpCost, rebuildPool } from "../../../src/engine/gameEngine";
 import { refreshShop } from "../../../src/engine/shopEngine";
 import { calculateActiveTraits, getRefreshDiscount } from "../../../src/engine/traitEngine";
-import type { AugmentDefinition, GamePhase, GameState, PlayerState, RandomSource, TileInstance, TileWithDefinition } from "../../../src/types";
+import type { AugmentDefinition, GamePhase, GameState, PlayerState, RandomSource, SettlementEntry, TileInstance, TileWithDefinition } from "../../../src/types";
 import { createSeededRandom } from "../../../src/utils/random";
 import { sortTiles } from "../../../src/utils/tileSort";
 import type { AckResponse, ActionResult, ClientGameView, PrivatePlayerView, PublicGameView } from "../../../shared/types/network";
 import type { Room, RoomPlayer } from "./RoomManager";
 import { fail, ok } from "../utils/result";
+
+const SHOP_SIZE = 5;
 
 export interface GameSession {
   roomId: string;
@@ -28,12 +30,80 @@ type ActionGuard =
   | { valid: true; session: GameSession; player: PlayerState }
   | { valid: false; response: AckResponse<never> };
 
+const settlementStatusRank: Record<SettlementEntry["status"], number> = {
+  winning: 4,
+  ready: 3,
+  close: 2,
+  unformed: 1
+};
+
+export function buildRankingAfterSettlement({
+  previousRanking,
+  beforePlayers,
+  afterPlayers,
+  settlement
+}: {
+  previousRanking: string[];
+  beforePlayers: PlayerState[];
+  afterPlayers: PlayerState[];
+  settlement: SettlementEntry[];
+}): string[] {
+  const afterById = new Map(afterPlayers.map((player) => [player.id, player]));
+  const settlementById = new Map(settlement.map((entry) => [entry.playerId, entry]));
+  const olderEliminated = previousRanking.filter((playerId) => !afterById.get(playerId)?.isAlive);
+  const olderEliminatedIds = new Set(olderEliminated);
+  const newlyEliminated = beforePlayers
+    .filter((player) => player.isAlive && !afterById.get(player.id)?.isAlive && !olderEliminatedIds.has(player.id))
+    .sort((left, right) => {
+      const leftEntry = settlementById.get(left.id);
+      const rightEntry = settlementById.get(right.id);
+      const leftRoundRank = leftEntry?.roundRank && leftEntry.roundRank > 0 ? leftEntry.roundRank : 99;
+      const rightRoundRank = rightEntry?.roundRank && rightEntry.roundRank > 0 ? rightEntry.roundRank : 99;
+
+      return (
+        leftRoundRank - rightRoundRank ||
+        (settlementStatusRank[rightEntry?.status ?? "unformed"] - settlementStatusRank[leftEntry?.status ?? "unformed"]) ||
+        (rightEntry?.combatScore ?? 0) - (leftEntry?.combatScore ?? 0) ||
+        (rightEntry?.hpBefore ?? right.hp) - (leftEntry?.hpBefore ?? left.hp) ||
+        (leftEntry?.damage ?? 0) - (rightEntry?.damage ?? 0) ||
+        left.id.localeCompare(right.id)
+      );
+    })
+    .map((player) => player.id);
+  const aliveStandings = afterPlayers
+    .filter((player) => player.isAlive)
+    .sort((left, right) => right.hp - left.hp || right.gold - left.gold || left.id.localeCompare(right.id))
+    .map((player) => player.id);
+
+  return [...aliveStandings, ...newlyEliminated, ...olderEliminated].filter(
+    (playerId, index, ranking) => ranking.indexOf(playerId) === index
+  );
+}
+
 function rng(seed: number): RandomSource {
   return createSeededRandom(seed);
 }
 
 function toTileInstances(tiles: TileWithDefinition[]): TileInstance[] {
   return tiles.map(({ instanceId, tileId }) => ({ instanceId, tileId }));
+}
+
+function normalizeShopTiles(tiles: TileInstance[]): { shop: TileInstance[]; overflow: TileInstance[] } {
+  const seen = new Set<string>();
+  const shop: TileInstance[] = [];
+  const overflow: TileInstance[] = [];
+
+  for (const tile of tiles) {
+    if (seen.has(tile.instanceId) || shop.length >= SHOP_SIZE) {
+      overflow.push(tile);
+      continue;
+    }
+
+    seen.add(tile.instanceId);
+    shop.push(tile);
+  }
+
+  return { shop, overflow };
 }
 
 function createAIPlayer(index: number): RoomPlayer {
@@ -188,7 +258,7 @@ export class GameSessionManager {
       playerId,
       handTiles: player.handTiles,
       benchTiles: [],
-      shop: session.playerShops[playerId] ?? [],
+      shop: this.normalizePlayerShop(session, playerId),
       augmentChoices: session.playerAugmentChoices[playerId] ?? [],
       gold: player.gold,
       level: player.level,
@@ -203,7 +273,7 @@ export class GameSessionManager {
     if (!guard.valid) return guard.response;
     const session = guard.session;
     const player = guard.player;
-    const shop = session.playerShops[playerId] ?? [];
+    const shop = this.normalizePlayerShop(session, playerId);
     const shopTile = shop.find((tile) => tile.instanceId === instanceId);
     const definition = tileDefinitions.find((tile) => tile.id === shopTile?.tileId);
 
@@ -263,7 +333,7 @@ export class GameSessionManager {
     const cost = Math.max(0, 2 - discount);
     if (player.gold < cost) return fail("NOT_ENOUGH_GOLD", "金币不足");
 
-    const currentShop = session.playerShops[playerId] ?? [];
+    const currentShop = this.normalizePlayerShop(session, playerId);
     const pool = rebuildPool([...session.game.tilePool, ...currentShop]);
     const refreshRng = rng(session.rngSeed + session.game.round + playerId.length + Date.now());
     const finalCost = cost - getRefreshCostRefund(player, cost, refreshRng);
@@ -276,7 +346,7 @@ export class GameSessionManager {
       suitBias: getSuitFocusShopBias(player)
     });
 
-    session.playerShops[playerId] = toTileInstances(result.shop);
+    session.playerShops[playerId] = toTileInstances(result.shop).slice(0, SHOP_SIZE);
     session.game = {
       ...session.game,
       tilePool: toTileInstances(result.pool),
@@ -472,28 +542,70 @@ export class GameSessionManager {
     return calculateActiveTraits(definitionsForInstances(player.handTiles));
   }
 
+  private normalizePlayerShop(session: GameSession, playerId: string): TileInstance[] {
+    const currentShop = session.playerShops[playerId] ?? [];
+    const normalized = normalizeShopTiles(currentShop);
+
+    if (normalized.shop.length !== currentShop.length || normalized.overflow.length > 0) {
+      session.playerShops[playerId] = normalized.shop;
+      this.returnTilesToPool(session, normalized.overflow);
+    }
+
+    return normalized.shop;
+  }
+
+  private returnTilesToPool(session: GameSession, tiles: TileInstance[]): void {
+    if (tiles.length === 0) return;
+
+    const occupiedIds = new Set([
+      ...session.game.tilePool.map((tile) => tile.instanceId),
+      ...session.game.players.flatMap((player) => [
+        ...player.handTiles.map((tile) => tile.instanceId),
+        ...player.benchTiles.map((tile) => tile.instanceId),
+        ...player.discardTiles.map((tile) => tile.instanceId)
+      ]),
+      ...Object.values(session.playerShops).flatMap((shop) => shop.map((tile) => tile.instanceId))
+    ]);
+    const returned = tiles.filter((tile) => !occupiedIds.has(tile.instanceId));
+
+    if (returned.length === 0) return;
+
+    session.game = {
+      ...session.game,
+      tilePool: [...session.game.tilePool, ...returned]
+    };
+  }
+
   private settleRound(session: GameSession): void {
+    const beforePlayers = session.game.players;
     let game = session.game;
     for (const ai of game.players.filter((player) => player.isAI && player.isAlive)) {
-      game = runAITurn({ game: { ...game, currentPlayerId: ai.id, shop: session.playerShops[ai.id] ?? [] }, playerId: ai.id, definitions: tileDefinitions, rng: rng(session.rngSeed + game.round + ai.id.length) });
-      session.playerShops[ai.id] = game.shop;
+      const aiShop = this.normalizePlayerShop(session, ai.id);
+      game = runAITurn({ game: { ...game, currentPlayerId: ai.id, shop: aiShop }, playerId: ai.id, definitions: tileDefinitions, rng: rng(session.rngSeed + game.round + ai.id.length) });
+      session.playerShops[ai.id] = normalizeShopTiles(game.shop).shop;
       game = { ...game, shop: [] };
     }
     const settled = endRound({ ...game, shop: [] }, rng(session.rngSeed + game.round + 400));
     const shopsToReturn = Object.entries(session.playerShops).flatMap(([playerId, shop]) => {
       const player = settled.players.find((item) => item.id === playerId);
-      return player?.lockedShop && player.isAlive ? [] : shop;
+      const normalized = normalizeShopTiles(shop);
+      return player?.lockedShop && player.isAlive ? normalized.overflow : [...normalized.shop, ...normalized.overflow];
     });
     let pool = rebuildPool([...settled.tilePool, ...settled.shop, ...shopsToReturn]);
     const playerShops: Record<string, TileInstance[]> = {};
     for (const player of settled.players) {
+      if (!player.isAlive) {
+        playerShops[player.id] = [];
+        continue;
+      }
+
       if (player.lockedShop && session.playerShops[player.id]) {
-        playerShops[player.id] = session.playerShops[player.id];
+        playerShops[player.id] = normalizeShopTiles(session.playerShops[player.id]).shop;
         continue;
       }
       const result = refreshShop({ pool, level: player.level, rng: rng(session.rngSeed + settled.round + player.id.length), suitBias: getSuitFocusShopBias(player) });
       pool = result.pool;
-      playerShops[player.id] = toTileInstances(result.shop);
+      playerShops[player.id] = toTileInstances(result.shop).slice(0, SHOP_SIZE);
     }
     session.game = { ...settled, shop: [], tilePool: toTileInstances(pool) };
     session.playerShops = playerShops;
@@ -520,6 +632,11 @@ export class GameSessionManager {
         session.playerAugmentChoices[ai.id] = [];
       }
     }
-    session.ranking = [...session.game.players].sort((left, right) => Number(right.isAlive) - Number(left.isAlive) || right.hp - left.hp).map((player) => player.id);
+    session.ranking = buildRankingAfterSettlement({
+      previousRanking: session.ranking,
+      beforePlayers,
+      afterPlayers: session.game.players,
+      settlement: session.game.lastSettlement
+    });
   }
 }

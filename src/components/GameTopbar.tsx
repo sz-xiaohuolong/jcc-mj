@@ -1,6 +1,7 @@
 import { Coins, Gem, Heart } from "lucide-react";
 import type { CityDefinition } from "../types";
 import { CityBanner } from "./CityBanner";
+import { SoundSettingsButton } from "./SoundSettingsButton";
 
 interface GameTopbarProps {
   city: CityDefinition | null;
@@ -35,6 +36,7 @@ export function GameTopbar({ city, round, stage, gold, hp, level }: GameTopbarPr
           <Gem size={18} />
           Lv.{level}
         </span>
+        <SoundSettingsButton />
       </div>
     </div>
   );

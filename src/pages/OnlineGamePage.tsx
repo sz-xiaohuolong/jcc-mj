@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from "framer-motion";
 import { Lock, RefreshCcw, StepForward, Unlock, Wand2 } from "lucide-react";
 import { tileDefinitions } from "../data/tiles";
 import { getLevelUpCost } from "../store/gameStore";
@@ -6,6 +7,7 @@ import type { TileInstance } from "../types";
 import { ArenaBoard } from "../components/ArenaBoard";
 import { AugmentPanel } from "../components/AugmentPanel";
 import { GameTopbar } from "../components/GameTopbar";
+import { GameOverModal } from "../components/GameOverModal";
 import { PlayerStatus } from "../components/PlayerStatus";
 import { TileCard } from "../components/TileCard";
 import { TraitPanel } from "../components/TraitPanel";
@@ -26,6 +28,7 @@ export function OnlineGamePage() {
   const discardTile = useOnlineStore((state) => state.discardTile);
   const chooseAugment = useOnlineStore((state) => state.chooseAugment);
   const endTurn = useOnlineStore((state) => state.endTurn);
+  const leaveRoom = useOnlineStore((state) => state.leaveRoom);
 
   if (!gameView) {
     return <main className="game-shell">等待服务端同步游戏状态...</main>;
@@ -38,6 +41,7 @@ export function OnlineGamePage() {
     ...player,
     meta: `手牌 ${player.handTileCount} · ${player.endedTurn ? "已结束" : "操作中"}`
   }));
+  const showEndModal = publicGame.phase === "game_over" || me?.isAlive === false;
   const remainingSeconds = timerRemainingMs ? Math.ceil(timerRemainingMs / 1000) : publicGame.deadlineAt ? Math.max(0, Math.ceil((publicGame.deadlineAt - Date.now()) / 1000)) : 60;
 
   return (
@@ -155,6 +159,20 @@ export function OnlineGamePage() {
           )}
         </aside>
       </div>
+      <AnimatePresence>
+        {showEndModal && (
+          <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <GameOverModal
+              players={publicGame.players}
+              ranking={publicGame.ranking}
+              winnerId={publicGame.winnerId}
+              currentPlayerId={privatePlayer.playerId}
+              onPrimary={leaveRoom}
+              primaryLabel="离开房间"
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }

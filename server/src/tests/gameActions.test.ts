@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { augmentDefinitions } from "../../../src/data/augments";
 import { RoomManager } from "../managers/RoomManager";
-import { GameSessionManager } from "../managers/GameSessionManager";
+import { buildRankingAfterSettlement, GameSessionManager } from "../managers/GameSessionManager";
+import type { PlayerState, SettlementEntry, TileInstance } from "../../../src/types";
 
 function createStartedSession() {
   const roomManager = new RoomManager();
@@ -26,6 +27,15 @@ function allSessionTileInstanceIds(session: ReturnType<GameSessionManager["getSe
     ]),
     ...Object.values(session.playerShops).flatMap((shop) => shop.map((tile) => tile.instanceId))
   ];
+}
+
+function takeFromPool(session: NonNullable<ReturnType<GameSessionManager["getSession"]>>, count: number): TileInstance[] {
+  const taken = session.game.tilePool.slice(0, count);
+  session.game = {
+    ...session.game,
+    tilePool: session.game.tilePool.slice(count)
+  };
+  return taken;
 }
 
 describe("GameSessionManager", () => {
@@ -141,6 +151,24 @@ describe("GameSessionManager", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
+  it("clamps an oversized locked private shop to five tiles", () => {
+    const { sessionManager, session, owner, second } = createStartedSession();
+    session.playerShops[owner.id] = takeFromPool(session, 8);
+
+    const ownerView = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+    sessionManager.lockShop(session.roomId, owner.id);
+    sessionManager.endTurn(session.roomId, owner.id);
+    sessionManager.endTurn(session.roomId, second.id);
+    const after = sessionManager.getSession(session.roomId)!;
+    const afterOwnerView = sessionManager.buildClientGameView(session.roomId, owner.id)!;
+    const ids = allSessionTileInstanceIds(after);
+
+    expect(ownerView.privatePlayer.shop).toHaveLength(5);
+    expect(afterOwnerView.privatePlayer.shop).toHaveLength(5);
+    expect(Object.values(after.playerShops).every((shop) => shop.length <= 5)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
   it("lets a player spend gold to level up", () => {
     const { sessionManager, session, owner } = createStartedSession();
     const before = sessionManager.buildClientGameView(session.roomId, owner.id)!;
@@ -233,5 +261,51 @@ describe("GameSessionManager", () => {
     expect(after.privatePlayer.handTiles.length + after.privatePlayer.benchTiles.length).toBe(
       before.privatePlayer.handTiles.length + before.privatePlayer.benchTiles.length + 2
     );
+  });
+
+  it("keeps later eliminations above earlier eliminations in the final ranking", () => {
+    const player = (id: string, hp: number, alive: boolean): PlayerState =>
+      ({
+        id,
+        name: id,
+        isAI: false,
+        hp,
+        gold: 0,
+        level: 1,
+        xp: 0,
+        handTiles: [],
+        benchTiles: [],
+        discardTiles: [],
+        augments: [],
+        activeTraits: [],
+        isAlive: alive,
+        isWinning: false,
+        lockedShop: false,
+        hasRefreshedThisRound: false,
+        hasDiscardedThisRound: false
+      }) satisfies PlayerState;
+    const settlement = (playerId: string, hpBefore: number, damage: number): SettlementEntry => ({
+      playerId,
+      playerName: playerId,
+      hpBefore,
+      hpAfter: Math.max(0, hpBefore - damage),
+      damage,
+      status: "unformed",
+      patterns: [],
+      combatScore: 0,
+      isRoundWinner: false,
+      roundRank: 0
+    });
+
+    const ranking = buildRankingAfterSettlement({
+      previousRanking: ["ai-2"],
+      beforePlayers: [player("owner", 30, true), player("second", 2, true), player("ai-1", 1, true), player("ai-2", 0, false)],
+      afterPlayers: [player("owner", 30, true), player("second", 0, false), player("ai-1", 0, false), player("ai-2", 0, false)],
+      settlement: [settlement("owner", 30, 0), settlement("second", 2, 7), settlement("ai-1", 1, 10), settlement("ai-2", 0, 0)]
+    });
+
+    expect(ranking[0]).toBe("owner");
+    expect(ranking.indexOf("second")).toBeLessThan(ranking.indexOf("ai-2"));
+    expect(ranking.indexOf("ai-1")).toBeLessThan(ranking.indexOf("ai-2"));
   });
 });

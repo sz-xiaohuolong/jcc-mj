@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { playGameSound } from "../audio/playGameSound";
+import { playSettlementSounds } from "../audio/settlementSound";
 import { tileDefinitions } from "../data/tiles";
 import { applyImmediateAugmentEffect } from "../engine/augmentEffects";
 import { chooseAugmentForAI, createAugmentChoices, getRefreshCostModifier, getRefreshCostRefund } from "../engine/augmentEngine";
@@ -93,6 +95,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   startGame() {
     const seed = Math.floor(Math.random() * 100000);
+    playGameSound("uiClick");
     set({
       seed,
       view: "game",
@@ -131,6 +134,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         return { lastError: "手牌已满，请先弃 1 张牌再购买。" };
       }
 
+      playGameSound("tileBuy");
       return { game: buyTile(state.game, state.game.currentPlayerId, instanceId), lastError: undefined };
     });
   },
@@ -156,6 +160,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         item.id === player.id ? { ...item, gold: item.gold - finalCost, hasRefreshedThisRound: true } : item
       );
       const refreshed = refreshGameShop({ ...state.game, players }, refreshRng);
+      playGameSound("shopRefresh");
 
       return {
         game: {
@@ -167,6 +172,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   toggleLockShop() {
+    playGameSound("shopLock");
     set((state) => ({
       game: {
         ...state.game,
@@ -178,18 +184,44 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   discard(instanceId) {
-    set((state) => ({ game: discardTile(state.game, state.game.currentPlayerId, instanceId) }));
+    set((state) => {
+      const player = playerOf(state.game);
+      const beforeCount = player?.discardTiles.length ?? 0;
+      const game = discardTile(state.game, state.game.currentPlayerId, instanceId);
+      const nextPlayer = playerOf(game);
+      if ((nextPlayer?.discardTiles.length ?? 0) > beforeCount) {
+        playGameSound("tileSell");
+      }
+      return { game };
+    });
   },
 
   sell(instanceId) {
-    set((state) => ({ game: sellTile(state.game, state.game.currentPlayerId, instanceId) }));
+    set((state) => {
+      const player = playerOf(state.game);
+      const beforeCount = player?.discardTiles.length ?? 0;
+      const game = sellTile(state.game, state.game.currentPlayerId, instanceId);
+      const nextPlayer = playerOf(game);
+      if ((nextPlayer?.discardTiles.length ?? 0) > beforeCount) {
+        playGameSound("tileSell");
+      }
+      return { game };
+    });
   },
 
   levelUp() {
-    set((state) => ({ game: levelUpPlayer(state.game, state.game.currentPlayerId) }));
+    set((state) => {
+      const beforeLevel = playerOf(state.game)?.level ?? 0;
+      const game = levelUpPlayer(state.game, state.game.currentPlayerId);
+      if ((playerOf(game)?.level ?? 0) > beforeLevel) {
+        playGameSound("levelUp");
+      }
+      return { game };
+    });
   },
 
   organizeHand() {
+    playGameSound("handSort");
     set((state) => ({
       game: {
         ...state.game,
@@ -211,6 +243,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   chooseAugment(augment) {
+    playGameSound("augmentPick");
     set((state) => {
       const selectedAugments = new Map<string, AugmentDefinition>();
       let game: GameState = {
@@ -252,6 +285,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   },
 
   endTurn() {
+    playGameSound("turnEnd");
     set((state) => {
       let game = state.game;
 
@@ -259,7 +293,17 @@ export const useGameStore = create<GameStore>((set, get) => ({
         game = runAITurnWithPrivateShop(game, ai.id, state.seed + game.round + ai.id.length);
       }
 
-      return { game: endRound(game, nextRng(state.seed + game.round + 9)) };
+      const settledGame = endRound(game, nextRng(state.seed + game.round + 9));
+      playSettlementSounds({
+        scope: "single",
+        round: settledGame.round,
+        phase: settledGame.phase,
+        currentPlayerId: settledGame.currentPlayerId,
+        winnerId: settledGame.winnerId,
+        lastSettlement: settledGame.lastSettlement
+      });
+
+      return { game: settledGame };
     });
   },
 

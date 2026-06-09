@@ -1,3 +1,4 @@
+import { BackgroundMusic } from "./components/BackgroundMusic";
 import { GamePage } from "./pages/GamePage";
 import { HomePage } from "./pages/HomePage";
 import { OnlineGamePage } from "./pages/OnlineGamePage";
@@ -8,26 +9,34 @@ import { useGameStore } from "./store/gameStore";
 
 export default function App() {
   const view = useGameStore((state) => state.view);
+  const content = (() => {
+    if (view === "rules") {
+      return <RulePage />;
+    }
 
-  if (view === "rules") {
-    return <RulePage />;
-  }
+    if (view === "game") {
+      return <GamePage />;
+    }
 
-  if (view === "game") {
-    return <GamePage />;
-  }
+    if (view === "online-home") {
+      return <OnlineHomePage />;
+    }
 
-  if (view === "online-home") {
-    return <OnlineHomePage />;
-  }
+    if (view === "online-lobby") {
+      return <RoomLobbyPage />;
+    }
 
-  if (view === "online-lobby") {
-    return <RoomLobbyPage />;
-  }
+    if (view === "online-game") {
+      return <OnlineGamePage />;
+    }
 
-  if (view === "online-game") {
-    return <OnlineGamePage />;
-  }
+    return <HomePage />;
+  })();
 
-  return <HomePage />;
+  return (
+    <>
+      <BackgroundMusic />
+      {content}
+    </>
+  );
 }

@@ -5,11 +5,7 @@
 项目名：金铲铲麻将 / 羁绊麻将  
 仓库：`https://github.com/sz-xiaohuolong/jcc-mj`  
 当前分支：`main`  
-最新提交：
-
-- `a84695b fix: add online organize and level actions`
-- `14c4d10 feat: add online multiplayer mvp`
-- `48de185 feat: initial playable jcc mahjong mvp`
+当前版本重点包括：Smart AI、联机商店/排名修复、音效/BGM、胜利/死亡结算弹窗和对应文档。具体提交历史以 `git log --oneline -5` 为准。
 
 当前版本已经从单机 MVP 扩展到联机 MVP。核心原则是：单机模式保留本地 Zustand 状态；联机模式使用服务端权威状态，客户端只发送操作意图。
 
@@ -49,7 +45,7 @@ npm run build
 
 最近一次验证结果：
 
-- `npm test`：9 个测试文件，26 个测试通过
+- `npm test`：17 个测试文件，80 个测试通过
 - `npm run build`：通过
 
 ## Current Feature Set
@@ -70,6 +66,9 @@ npm run build
 - 基础胡牌、七对子、碰碰胡、清一色
 - AI 自动行动
 - 胡牌质量对决、回合结算、淘汰、胜负展示
+- Smart AI 1.0：评估普通胡、七对子、碰碰胡、清一色路线，接近胡牌时更积极刷新。
+- 操作音效、无歌词循环 BGM、音效/BGM 独立音量。
+- 胜利、死亡、最终排名全局弹窗。
 
 单机状态入口：
 
@@ -103,6 +102,10 @@ npm run build
 - 服务端倒计时广播
 - 超时后服务端统一结算
 - 60 秒内基础重连恢复
+- 每名玩家私有商店服务端强制最多 5 张
+- 锁店牌不会回到公共牌库，其他玩家刷新不到同一实例
+- 游戏结束排名按淘汰顺序稳定结算
+- 淘汰/最终结算弹窗在联机客户端可见
 
 联机入口和页面：
 
@@ -158,6 +161,7 @@ npm run build
 - `src/engine/cityEngine.ts`
 - `src/engine/damageEngine.ts`
 - `src/engine/aiEngine.ts`
+- `src/engine/aiHandEvaluator.ts`
 - `src/engine/gameEngine.ts`
 
 重要规则：
@@ -166,8 +170,33 @@ npm run build
 - 多人同时胡牌时按胡牌战力分决出本回合胜者，其他胡牌者按分差少量扣血。
 - 当前版本没有备牌区；手牌满 14 张后不能继续购买，需要先弃 1 张。
 - 每名玩家每回合只能弃 1 张牌，弃牌会回到公共牌库。
+- 联机私有商店窗口最多 5 张，异常状态会在服务端规范化。
+- 最终排名按淘汰顺序排列，越晚淘汰名次越高。
 - `gameEngine.ts` 内有初始化、购买、弃牌、升级、结算等单机通用函数。
 - 联机 `GameSessionManager` 复用这些 engine/data/type，不另写一套规则。
+
+### Audio
+
+音频模块：
+
+- `src/audio/soundAssets.ts`
+- `src/audio/soundManager.ts`
+- `src/audio/playGameSound.ts`
+- `src/audio/settlementSound.ts`
+- `src/store/soundStore.ts`
+- `src/components/BackgroundMusic.tsx`
+- `src/components/SoundSettingsButton.tsx`
+
+资源目录：
+
+- `public/sounds/`
+
+资源来源：
+
+- 操作音效：Kenney Interface Sounds 1.0，CC0。
+- BGM：OpenGameArt `relax_background1`，作者 joaquinton，CC0。
+
+BGM 受浏览器自动播放策略影响，会在首次用户点击或按键后启动。
 
 ### Data
 
@@ -294,8 +323,12 @@ npm run build
 - `src/tests/shopEngine.test.ts`
 - `src/tests/traitEngine.test.ts`
 - `src/tests/aiEngine.test.ts`
+- `src/tests/aiHandEvaluator.test.ts`
 - `src/tests/gameFlow.test.ts`
 - `src/tests/gameStore.test.ts`
+- `src/tests/gameSound.test.ts`
+- `src/tests/settlementSound.test.ts`
+- `src/tests/soundStore.test.ts`
 - `server/src/tests/room.test.ts`
 - `server/src/tests/gameActions.test.ts`
 - `server/src/tests/reconnect.test.ts`
@@ -308,8 +341,83 @@ npm run build
 
 - 联机升级扣金币并提升等级
 - 联机整理手牌按牌序排序
+- 联机私有商店最多 5 张
+- 锁店牌不会进入其他玩家商店
+- 游戏结束排名按淘汰顺序稳定
+- 音效触发和设置持久化
 
 ## Recent Fixes
+
+### Smart AI 1.0
+
+问题：AI 很少胡牌，只会粗略买牌，不会围绕具体胡牌方向构筑。  
+修复：
+
+- 新增 AI 手牌评估模块。
+- 识别普通胡、七对子、碰碰胡、清一色倾向。
+- 商店牌评分会判断买入后是否更接近胡牌。
+- 手牌满 14 张且未胡时，AI 会出售最弱牌继续优化。
+- 接近胡牌或低血量时更积极刷新。
+- 金币充足且不急搜牌时会适当升级。
+- AI 海克斯选择参考对子、刻子、花色集中度、血量和经济状态。
+
+相关文件：
+
+- `src/engine/aiHandEvaluator.ts`
+- `src/engine/aiEngine.ts`
+- `src/engine/augmentEngine.ts`
+- `src/tests/aiHandEvaluator.test.ts`
+- `src/tests/aiEngine.test.ts`
+
+### Online Shop And Ranking Fix
+
+问题：
+
+- 联机后期可能出现私有商店超过 5 张。
+- 锁店牌可能影响其他玩家刷新。
+- 游戏结束后 2/3/4 名不是按淘汰顺序稳定排列。
+
+修复：
+
+- `GameSessionManager` 新增私有商店规范化逻辑。
+- 所有私有商店对外视图最多 5 张。
+- 结算和刷新时锁店牌不回到公共牌库。
+- 异常多出的商店牌会被裁剪并回收到牌库。
+- 新增 `buildRankingAfterSettlement`，按存活状态和淘汰顺序生成排名。
+
+相关文件：
+
+- `server/src/managers/GameSessionManager.ts`
+- `server/src/tests/gameActions.test.ts`
+
+### Audio And Settlement UX
+
+问题：
+
+- 缺少实际音效文件。
+- 整理手牌音效偏吵。
+- 没有全局 BGM。
+- 每回合结算弹窗在移动端对比度不足。
+- 胜利/死亡缺少全局整体结算弹窗。
+
+修复：
+
+- 补齐 `public/sounds/` 下 mp3 资源。
+- 整理音效替换为更安静的短反馈。
+- 新增低音量无歌词 BGM，并提供 BGM 音量控制。
+- 新增 `GameOverModal`，用于单机和联机的胜利/死亡/最终排名。
+- 提高结算弹窗背景和文字对比度。
+
+相关文件：
+
+- `src/components/BackgroundMusic.tsx`
+- `src/components/GameOverModal.tsx`
+- `src/components/ResultModal.tsx`
+- `src/components/SoundSettingsButton.tsx`
+- `src/audio/*`
+- `src/store/soundStore.ts`
+- `docs/sound-design.md`
+- `public/sounds/`
 
 ### Refresh Cost Fix
 
@@ -361,6 +469,8 @@ Socket smoke test流程：
 9. A 购买牌
 10. A 升级
 11. A 整理手牌
+12. 连续结算若干回合，确认每个私有商店不超过 5 张
+13. 淘汰或游戏结束后，确认最终结算弹窗和排名
 
 浏览器 smoke test流程：
 
@@ -370,6 +480,8 @@ Socket smoke test流程：
 4. 输入昵称
 5. 点击“创建房间”
 6. 进入大厅，看到房间号、复制按钮、玩家列表、开始游戏按钮
+7. 进入游戏后第一次点击页面，BGM 应按浏览器策略开始循环
+8. 打开音效设置，确认音效音量和 BGM 音量可以分别调节
 
 ## Known Limitations
 
@@ -382,6 +494,8 @@ Socket smoke test流程：
 - 图鉴入口仍复用规则页，未独立实现完整图鉴。
 - 移动端未做深度适配。
 - 海克斯部分效果仍是标签/轻量效果，后续需要补完整数值闭环。
+- 游戏结束后的房间销毁/保留策略还没有产品化；当前依赖内存会话生命周期。
+- 音频目前只有一条 BGM，没有动态配乐或按城邦切换的音乐。
 
 ## Development Rules For Future Agents
 
@@ -413,7 +527,10 @@ git status --short --branch
 - `docs/network-protocol.md`
 - `docs/server-architecture.md`
 - `docs/development-log.md`
+- `docs/player-guide.md`
+- `docs/sound-design.md`
 - `src/types.ts`
+- `src/audio/`
 - `shared/types/network.ts`
 - `shared/protocol/events.ts`
 - `server/src/managers/GameSessionManager.ts`
