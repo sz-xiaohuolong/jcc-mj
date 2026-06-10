@@ -16,10 +16,10 @@ export function HomePage() {
         <div className="mahjong-mark" aria-hidden="true">
           雀
         </div>
-        <p className="eyebrow">原创机制 · 单机策略构筑</p>
+        <p className="eyebrow">原创机制</p>
         <h1>羁绊麻将</h1>
         <p className="home-copy">
-          用金币刷新牌池，用羁绊改变构筑，用基础胡牌击败三名 AI。第一版聚焦规则清晰、回合流畅和可扩展代码结构。
+          创建房间邀请朋友同局竞技，不足四人自动补 AI。每名玩家拥有私有商店和手牌，服务端统一结算胡牌质量、扣血和最终排名。
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <button className="primary-button" type="button" onClick={startGame}>

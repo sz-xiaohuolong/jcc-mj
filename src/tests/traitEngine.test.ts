@@ -40,4 +40,20 @@ describe("traitEngine", () => {
     expect(getRefreshDiscount([{ ...baseMystic, count: 4, tier: 2 }], true)).toBe(1);
     expect(getRefreshDiscount([{ ...baseMystic, count: 4, tier: 2 }], false)).toBe(1);
   });
+
+  it("makes swiftblade's first refresh free at 4 tiles", () => {
+    const baseSwiftblade: ActiveTrait = {
+      id: "swiftblade",
+      name: "迅刃",
+      count: 2,
+      tier: 1,
+      threshold: 4,
+      description: "首次刷新获得折扣。"
+    };
+
+    expect(getRefreshDiscount([baseSwiftblade], true)).toBe(1);
+    expect(getRefreshDiscount([baseSwiftblade], false)).toBe(0);
+    expect(getRefreshDiscount([{ ...baseSwiftblade, count: 4, tier: 2 }], true)).toBe(2);
+    expect(getRefreshDiscount([{ ...baseSwiftblade, count: 4, tier: 2 }], false)).toBe(0);
+  });
 });

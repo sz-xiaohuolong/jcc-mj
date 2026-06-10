@@ -421,8 +421,8 @@ BGM 受浏览器自动播放策略影响，会在首次用户点击或按键后�
 
 ### Refresh Cost Fix
 
-问题：迅刃“每回合首次刷新折扣”曾经每次刷新都生效。  
-修复：`PlayerState.hasRefreshedThisRound`，刷新后置 true，回合结算重置。
+问题：迅刃“每回合首次刷新折扣”曾经每次刷新都生效，并且 2 张与 4 张收益不够清晰。  
+修复：`PlayerState.hasRefreshedThisRound`，刷新后置 true，回合结算重置；2 迅刃首次刷新 -1，4 迅刃首次刷新免费。
 
 相关文件：
 

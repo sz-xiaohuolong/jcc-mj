@@ -33,7 +33,7 @@ export function getRefreshDiscount(activeTraits: ActiveTrait[], isFirstRefresh: 
   const mysticTier = activeTraits.find((trait) => trait.id === "mystic")?.tier ?? 0;
   const swiftTier = activeTraits.find((trait) => trait.id === "swiftblade")?.tier ?? 0;
   const mysticDiscount = mysticTier >= 2 || (mysticTier >= 1 && isFirstRefresh) ? 1 : 0;
-  const swiftDiscount = isFirstRefresh && swiftTier > 0 ? 1 : 0;
+  const swiftDiscount = isFirstRefresh ? Math.min(2, swiftTier) : 0;
 
   return mysticDiscount + swiftDiscount;
 }

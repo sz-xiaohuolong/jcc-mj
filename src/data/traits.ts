@@ -35,6 +35,6 @@ export const traitDefinitions: TraitDefinition[] = [
     id: "swiftblade",
     name: "迅刃",
     thresholds: [2, 4],
-    description: "每回合第一次刷新获得折扣。"
+    description: "2 张时每回合首次刷新 -1 金币，4 张时首次刷新免费。"
   }
 ];
