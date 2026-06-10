@@ -1,6 +1,7 @@
 import { BackgroundMusic } from "./components/BackgroundMusic";
 import { GamePage } from "./pages/GamePage";
 import { HomePage } from "./pages/HomePage";
+import { LeaderboardPage } from "./pages/LeaderboardPage";
 import { OnlineGamePage } from "./pages/OnlineGamePage";
 import { OnlineHomePage } from "./pages/OnlineHomePage";
 import { RoomLobbyPage } from "./pages/RoomLobbyPage";
@@ -12,6 +13,10 @@ export default function App() {
   const content = (() => {
     if (view === "rules") {
       return <RulePage />;
+    }
+
+    if (view === "leaderboard") {
+      return <LeaderboardPage />;
     }
 
     if (view === "game") {

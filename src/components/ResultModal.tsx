@@ -5,6 +5,7 @@ import { GameOverModal } from "./GameOverModal";
 
 export function ResultModal() {
   const game = useGameStore((state) => state.game);
+  const lastSoloRatingChange = useGameStore((state) => state.lastSoloRatingChange);
   const closeSettlement = useGameStore((state) => state.closeSettlement);
   const goHome = useGameStore((state) => state.goHome);
   const currentPlayer = game.players.find((player) => player.id === game.currentPlayerId);
@@ -16,7 +17,13 @@ export function ResultModal() {
       {visible && (
         <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
           {showEndModal ? (
-            <GameOverModal players={game.players} winnerId={game.winnerId} currentPlayerId={game.currentPlayerId} onPrimary={goHome} />
+            <GameOverModal
+              players={game.players}
+              winnerId={game.winnerId}
+              currentPlayerId={game.currentPlayerId}
+              ratingChanges={lastSoloRatingChange ? [lastSoloRatingChange] : []}
+              onPrimary={goHome}
+            />
           ) : (
             <motion.div className="result-modal" initial={{ y: 30, scale: 0.96 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.97 }}>
               <div className="flex items-center gap-3">

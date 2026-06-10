@@ -5,7 +5,7 @@
 项目名：金铲铲麻将 / 羁绊麻将  
 仓库：`https://github.com/sz-xiaohuolong/jcc-mj`  
 当前分支：`main`  
-当前版本重点包括：Smart AI、联机商店/排名修复、音效/BGM、胜利/死亡结算弹窗和对应文档。具体提交历史以 `git log --oneline -5` 为准。
+当前版本重点包括：Smart AI、联机商店/排名修复、音效/BGM、胜利/死亡结算弹窗、积分排行榜和对应文档。具体提交历史以 `git log --oneline -5` 为准。
 
 当前版本已经从单机 MVP 扩展到联机 MVP。核心原则是：单机模式保留本地 Zustand 状态；联机模式使用服务端权威状态，客户端只发送操作意图。
 
@@ -69,6 +69,7 @@ npm run build
 - Smart AI 1.0：评估普通胡、七对子、碰碰胡、清一色路线，接近胡牌时更积极刷新。
 - 操作音效、无歌词循环 BGM、音效/BGM 独立音量。
 - 胜利、死亡、最终排名全局弹窗。
+- 单机积分、段位和本地排行榜。
 
 单机状态入口：
 
@@ -106,6 +107,8 @@ npm run build
 - 锁店牌不会回到公共牌库，其他玩家刷新不到同一实例
 - 游戏结束排名按淘汰顺序稳定结算
 - 淘汰/最终结算弹窗在联机客户端可见
+- 服务端根据最终排名结算联机积分
+- 联机排行榜通过 `/leaderboard` 暴露
 
 联机入口和页面：
 
@@ -197,6 +200,35 @@ npm run build
 - BGM：OpenGameArt `relax_background1`，作者 joaquinton，CC0。
 
 BGM 受浏览器自动播放策略影响，会在首次用户点击或按键后启动。
+
+### Rating
+
+积分模块：
+
+- `shared/rating/ratingRules.ts`
+- `shared/rating/ratingTypes.ts`
+- `src/rating/localRatingStorage.ts`
+- `src/rating/ratingTypes.ts`
+- `server/src/rating/RatingManager.ts`
+- `server/src/rating/ratingFileStore.ts`
+- `server/src/rating/ratingTypes.ts`
+
+身份：
+
+- 浏览器长期身份 key：`jcc-mj-profile-id`
+- `sessionToken` 只用于联机房间重连，不用于长期积分身份
+
+单机：
+
+- localStorage 保存单机积分。
+- 玩家获胜或淘汰时结算。
+
+联机：
+
+- 服务端按最终 `ranking` 结算。
+- AI 不计入联机排行榜。
+- 真人少于 2 名不计分。
+- 运行时数据：`data/rating_profiles.json`、`data/rating_match_records.jsonl`，已加入 `.gitignore`。
 
 ### Data
 
@@ -329,9 +361,12 @@ BGM 受浏览器自动播放策略影响，会在首次用户点击或按键后�
 - `src/tests/gameSound.test.ts`
 - `src/tests/settlementSound.test.ts`
 - `src/tests/soundStore.test.ts`
+- `src/tests/ratingRules.test.ts`
+- `src/tests/localRatingStorage.test.ts`
 - `server/src/tests/room.test.ts`
 - `server/src/tests/gameActions.test.ts`
 - `server/src/tests/reconnect.test.ts`
+- `server/src/tests/ratingManager.test.ts`
 
 最近新增的联机修复测试在：
 
@@ -345,8 +380,32 @@ BGM 受浏览器自动播放策略影响，会在首次用户点击或按键后�
 - 锁店牌不会进入其他玩家商店
 - 游戏结束排名按淘汰顺序稳定
 - 音效触发和设置持久化
+- 单机/联机积分规则
+- 本地 profileId 初始化和单机积分存储
+- RatingManager 联机结算、AI 过滤、真人数量边界
 
 ## Recent Fixes
+
+### Rating And Leaderboard
+
+新增：
+
+- 统一积分规则和段位映射。
+- 浏览器长期 `profileId`。
+- 单机 localStorage 积分。
+- 服务端联机积分和 JSON 文件持久化。
+- 首页排行榜入口，支持单机榜和联机榜。
+- 最终结算弹窗展示积分变化。
+
+相关文件：
+
+- `shared/rating/*`
+- `src/rating/*`
+- `server/src/rating/*`
+- `src/pages/LeaderboardPage.tsx`
+- `src/components/LeaderboardPanel.tsx`
+- `src/components/RatingChangePanel.tsx`
+- `docs/rating-system.md`
 
 ### Smart AI 1.0
 
@@ -496,6 +555,8 @@ Socket smoke test流程：
 - 海克斯部分效果仍是标签/轻量效果，后续需要补完整数值闭环。
 - 游戏结束后的房间销毁/保留策略还没有产品化；当前依赖内存会话生命周期。
 - 音频目前只有一条 BGM，没有动态配乐或按城邦切换的音乐。
+- 积分身份依赖浏览器 localStorage，不是账号体系。
+- 联机榜依赖单服务端 JSON 文件，不支持多服务器同步。
 
 ## Development Rules For Future Agents
 
@@ -528,6 +589,7 @@ git status --short --branch
 - `docs/server-architecture.md`
 - `docs/development-log.md`
 - `docs/player-guide.md`
+- `docs/rating-system.md`
 - `docs/sound-design.md`
 - `src/types.ts`
 - `src/audio/`

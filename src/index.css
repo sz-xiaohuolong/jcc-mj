@@ -1148,6 +1148,49 @@ button {
   height: 72px;
 }
 
+.rating-change-card {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) 1fr;
+  gap: 14px;
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid rgba(255, 216, 121, 0.42);
+  border-radius: 8px;
+  background: rgba(255, 202, 87, 0.12);
+}
+
+.rating-change-card > div:first-child strong {
+  display: block;
+  color: #fff4c7;
+  font-size: 34px;
+  line-height: 1;
+}
+
+.rating-delta-positive {
+  color: #99f6c9 !important;
+}
+
+.rating-delta-negative {
+  color: #ff9aa7 !important;
+}
+
+.rating-change-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.rating-change-grid span {
+  color: rgba(224, 244, 248, 0.72);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.rating-change-grid strong {
+  color: #fff8df;
+}
+
 .final-ranking {
   display: grid;
   gap: 10px;
@@ -1188,6 +1231,77 @@ button {
 
 .rules-screen {
   padding: 28px;
+}
+
+.leaderboard-screen {
+  min-height: 100vh;
+}
+
+.leaderboard-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.segmented-control {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid rgba(12, 68, 76, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 241, 0.72);
+}
+
+.segmented-control button {
+  min-width: 92px;
+  height: 36px;
+  border: 0;
+  border-radius: 6px;
+  color: #24515a;
+  font-weight: 900;
+}
+
+.segmented-control button.active {
+  color: #1a2f35;
+  background: linear-gradient(180deg, #f7cb62, #d99528);
+  box-shadow: 0 6px 14px rgba(112, 67, 10, 0.22);
+}
+
+.leaderboard-table {
+  overflow-x: auto;
+  border: 1px solid rgba(12, 68, 76, 0.18);
+  border-radius: 8px;
+  background: rgba(255, 253, 241, 0.86);
+}
+
+.leaderboard-row {
+  display: grid;
+  grid-template-columns: 68px minmax(120px, 1.1fr) minmax(110px, 1fr) 88px 78px 78px 78px 130px;
+  gap: 10px;
+  align-items: center;
+  min-width: 860px;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(12, 68, 76, 0.12);
+  color: #24464d;
+}
+
+.leaderboard-row:last-child {
+  border-bottom: 0;
+}
+
+.leaderboard-row--head {
+  color: #0f596b;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  background: rgba(123, 210, 219, 0.18);
+}
+
+.leaderboard-empty {
+  padding: 28px;
+  color: #45646a;
+  font-weight: 800;
 }
 
 .rules-header {
@@ -1418,6 +1532,11 @@ button {
   }
 
   .game-over-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .rating-change-card,
+  .rating-change-grid {
     grid-template-columns: 1fr;
   }
 

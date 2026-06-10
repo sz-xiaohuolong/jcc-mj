@@ -6,6 +6,7 @@ import type { ClientGameView, CreateRoomResult, GameError, JoinRoomResult, RoomS
 import { playGameSound } from "../audio/playGameSound";
 import { playSettlementSounds } from "../audio/settlementSound";
 import type { SoundKey } from "../audio/soundAssets";
+import { getOrCreateProfileId } from "../rating/localRatingStorage";
 import { resolveOnlineServerUrl } from "../utils/network";
 import { useGameStore } from "./gameStore";
 
@@ -167,7 +168,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
     const socket = await getSocket();
     playGameSound("uiClick");
     try {
-      const data = await ackToPromise<CreateRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomCreate, { nickname: get().nickname }, ack));
+      const data = await ackToPromise<CreateRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomCreate, { nickname: get().nickname, profileId: getOrCreateProfileId() }, ack));
       if (!data) return;
       localStorage.setItem(sessionKey, data.sessionToken);
       set({ playerId: data.playerId, sessionToken: data.sessionToken, roomId: data.room.id, roomState: data.room });
@@ -182,7 +183,7 @@ export const useOnlineStore = create<OnlineState>((set, get) => ({
     playGameSound("uiClick");
     try {
       const sessionToken = get().sessionToken ?? localStorage.getItem(sessionKey) ?? undefined;
-      const data = await ackToPromise<JoinRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomJoin, { roomId: roomId.toUpperCase(), nickname: get().nickname, sessionToken }, ack));
+      const data = await ackToPromise<JoinRoomResult>((ack) => socket.emit(CLIENT_EVENTS.roomJoin, { roomId: roomId.toUpperCase(), nickname: get().nickname, profileId: getOrCreateProfileId(), sessionToken }, ack));
       if (!data) return;
       localStorage.setItem(sessionKey, data.sessionToken);
       set({ playerId: data.playerId, sessionToken: data.sessionToken, roomId: data.room.id, roomState: data.room });

@@ -18,18 +18,22 @@ import {
   sellTile
 } from "../engine/gameEngine";
 import { getRefreshDiscount } from "../engine/traitEngine";
+import { recordSoloMatch } from "../rating/localRatingStorage";
+import type { RatingChange } from "../../shared/rating/ratingTypes";
 import type { AugmentDefinition, GameState, PlayerState, TileDefinition, TileInstance } from "../types";
 import { createSeededRandom } from "../utils/random";
 import { sortTiles } from "../utils/tileSort";
 
 interface GameStore {
   game: GameState;
-  view: "home" | "game" | "rules" | "online-home" | "online-lobby" | "online-game";
+  view: "home" | "game" | "rules" | "leaderboard" | "online-home" | "online-lobby" | "online-game";
   seed: number;
   lastError?: string;
+  lastSoloRatingChange?: RatingChange;
   startGame: () => void;
   goHome: () => void;
   openRules: () => void;
+  openLeaderboard: () => void;
   openOnlineHome: () => void;
   buyFromShop: (instanceId: string) => void;
   refreshShop: () => void;
@@ -87,11 +91,31 @@ function runAITurnWithPrivateShop(game: GameState, playerId: string, seed: numbe
   };
 }
 
+function soloRankForPlayer(game: GameState, playerId: string): number {
+  const player = game.players.find((item) => item.id === playerId);
+
+  if (!player) return 4;
+  if (game.winnerId === playerId) return 1;
+  if (!player.isAlive) return Math.min(4, game.players.filter((item) => item.isAlive).length + 1);
+
+  return [...game.players].sort((left, right) => Number(right.isAlive) - Number(left.isAlive) || right.hp - left.hp).findIndex((item) => item.id === playerId) + 1;
+}
+
+function highestHuScoreForPlayer(game: GameState, playerId: string): number {
+  return Math.max(
+    0,
+    ...game.lastSettlement
+      .filter((entry) => entry.playerId === playerId)
+      .map((entry) => entry.combatScore)
+  );
+}
+
 export const useGameStore = create<GameStore>((set, get) => ({
   game: initialGame,
   view: "home",
   seed: 42,
   lastError: undefined,
+  lastSoloRatingChange: undefined,
 
   startGame() {
     const seed = Math.floor(Math.random() * 100000);
@@ -100,16 +124,21 @@ export const useGameStore = create<GameStore>((set, get) => ({
       seed,
       view: "game",
       lastError: undefined,
+      lastSoloRatingChange: undefined,
       game: createInitialGame({ rng: createSeededRandom(seed) })
     });
   },
 
   goHome() {
-    set({ view: "home", game: initialGame, lastError: undefined });
+    set({ view: "home", game: initialGame, lastError: undefined, lastSoloRatingChange: undefined });
   },
 
   openRules() {
     set({ view: "rules" });
+  },
+
+  openLeaderboard() {
+    set({ view: "leaderboard" });
   },
 
   openOnlineHome() {
@@ -294,6 +323,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
       }
 
       const settledGame = endRound(game, nextRng(state.seed + game.round + 9));
+      const currentPlayer = settledGame.players.find((player) => player.id === settledGame.currentPlayerId);
+      const shouldSettleSoloRating =
+        !state.lastSoloRatingChange && (settledGame.phase === "game_over" || currentPlayer?.isAlive === false);
+      const lastSoloRatingChange = shouldSettleSoloRating
+        ? recordSoloMatch({
+            nickname: localStorage.getItem("jcc-mj-nickname") ?? "你",
+            rank: soloRankForPlayer(settledGame, settledGame.currentPlayerId),
+            highestHuScore: highestHuScoreForPlayer(settledGame, settledGame.currentPlayerId)
+          })
+        : state.lastSoloRatingChange;
       playSettlementSounds({
         scope: "single",
         round: settledGame.round,
@@ -303,7 +342,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
         lastSettlement: settledGame.lastSettlement
       });
 
-      return { game: settledGame };
+      return { game: settledGame, lastSoloRatingChange };
     });
   },
 

@@ -20,11 +20,14 @@ server/
 │   ├── managers/RoomManager.ts
 │   ├── managers/GameSessionManager.ts
 │   ├── managers/ConnectionManager.ts
+│   ├── rating/RatingManager.ts
+│   ├── rating/ratingFileStore.ts
 │   ├── services/
 │   ├── timers/TurnTimer.ts
 │   └── tests/
 shared/
 ├── protocol/
+├── rating/
 └── types/
 ```
 
@@ -50,6 +53,25 @@ shared/
 - 生成公共视图和私有视图。
 - 统一结算回合。
 - 不足 4 人时补 AI。
+- 游戏正常结束时触发联机积分结算。
+
+## RatingManager
+
+职责：
+
+- 根据 `profileId` 获取或创建联机积分档案。
+- 根据最终 `ranking` 计算联机积分变化。
+- 过滤 AI 玩家。
+- 真人玩家少于 2 名时跳过积分结算。
+- 生成联机排行榜。
+
+当前存储：
+
+- 内存 Map。
+- `data/rating_profiles.json` 保存积分档案。
+- `data/rating_match_records.jsonl` 追加对局记录。
+
+这两个运行时数据文件不会提交到 Git。
 
 ## ConnectionManager
 

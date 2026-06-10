@@ -6,3 +6,5 @@ coverage
 *.tsbuildinfo
 vite.config.js
 vite.config.d.ts
+data/rating_profiles.json
+data/rating_match_records.jsonl

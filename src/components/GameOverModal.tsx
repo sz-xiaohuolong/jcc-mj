@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Crown, Skull, Trophy } from "lucide-react";
+import type { RatingChange } from "../../shared/rating/ratingTypes";
+import { RatingChangePanel } from "./RatingChangePanel";
 
 export interface GameOverPlayer {
   id: string;
@@ -15,6 +17,7 @@ export function GameOverModal({
   ranking,
   winnerId,
   currentPlayerId,
+  ratingChanges = [],
   onPrimary,
   primaryLabel = "返回首页"
 }: {
@@ -22,6 +25,7 @@ export function GameOverModal({
   ranking?: string[];
   winnerId: string | null;
   currentPlayerId?: string;
+  ratingChanges?: RatingChange[];
   onPrimary: () => void;
   primaryLabel?: string;
 }) {
@@ -36,6 +40,9 @@ export function GameOverModal({
   const currentWon = Boolean(currentPlayerId && currentPlayerId === winnerId);
   const currentEliminated = Boolean(currentPlayer && !currentPlayer.isAlive && !currentWon);
   const title = currentWon ? "你获得了胜利" : currentEliminated ? "你已被淘汰" : winner ? `${winner.name} 获胜` : "本局结算";
+  const currentRatingChange = currentPlayerId
+    ? ratingChanges.find((change) => change.playerId === currentPlayerId || change.profileId === currentPlayerId) ?? ratingChanges[0]
+    : ratingChanges[0];
 
   return (
     <motion.div className="game-over-modal" initial={{ y: 30, scale: 0.96 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, scale: 0.97 }}>
@@ -49,6 +56,8 @@ export function GameOverModal({
           <p>{currentRank > 0 ? `你的当前名次：第 ${currentRank} 名` : "本局已经结束"}</p>
         </div>
       </div>
+
+      <RatingChangePanel change={currentRatingChange} />
 
       <div className="final-ranking">
         {orderedRanking.map((playerId, index) => {

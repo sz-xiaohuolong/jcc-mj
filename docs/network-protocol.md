@@ -6,8 +6,8 @@
 
 | 事件 | 说明 |
 | --- | --- |
-| `room:create` | 创建房间 |
-| `room:join` | 加入房间 |
+| `room:create` | 创建房间，payload 包含 `nickname` 和长期身份 `profileId` |
+| `room:join` | 加入房间，payload 包含 `roomId`、`nickname`、长期身份 `profileId` 和可选 `sessionToken` |
 | `room:leave` | 离开房间 |
 | `room:ready` | 设置准备状态 |
 | `game:start` | 房主开始游戏 |
@@ -51,6 +51,21 @@
 
 - `public`：公共游戏状态，如玩家血量、金币、等级、弃牌区、城邦、回合、日志。
 - `privatePlayer`：当前 socket 对应玩家的手牌、私有商店、海克斯选项。`benchTiles` 字段短期保留为空数组用于兼容旧客户端。
+
+`PublicGameView` 还会带上：
+
+- `ranking`：最终排名或当前排序。
+- `ratingChanges`：游戏结束后的联机积分变化。
+- `leaderboard`：当前服务端联机榜快照。
+
+## REST API
+
+| 接口 | 说明 |
+| --- | --- |
+| `GET /health` | 服务健康检查 |
+| `GET /leaderboard` | 获取联机排行榜 |
+
+`/leaderboard` 返回 `LeaderboardItem[]`，字段包括昵称、段位、积分、胜场、对局、胜率和最高胡牌战力。
 
 ## 错误码
 

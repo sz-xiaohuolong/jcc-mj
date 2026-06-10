@@ -30,11 +30,13 @@ export type Ack<T> = (response: AckResponse<T>) => void;
 
 export interface CreateRoomPayload {
   nickname: string;
+  profileId: string;
 }
 
 export interface JoinRoomPayload {
   roomId: string;
   nickname: string;
+  profileId: string;
   sessionToken?: string;
 }
 
@@ -175,6 +177,8 @@ export interface PublicGameView {
   lastSettlement: SettlementEntry[];
   winnerId: string | null;
   ranking: string[];
+  ratingChanges: RatingChange[];
+  leaderboard: LeaderboardItem[];
   deadlineAt?: number;
 }
 
@@ -194,6 +198,31 @@ export interface PrivatePlayerView {
 export interface ClientGameView {
   public: PublicGameView;
   privatePlayer: PrivatePlayerView;
+}
+
+export interface RatingChange {
+  profileId: string;
+  playerId?: string;
+  nickname: string;
+  mode: "solo" | "online";
+  rank: number;
+  pointsBefore: number;
+  pointsAfter: number;
+  delta: number;
+  tierBefore: string;
+  tierAfter: string;
+  highestHuScore: number;
+}
+
+export interface LeaderboardItem {
+  profileId: string;
+  nickname: string;
+  tier: string;
+  points: number;
+  wins: number;
+  matches: number;
+  winRate: number;
+  highestHuScore: number;
 }
 
 export interface GameEventLog {

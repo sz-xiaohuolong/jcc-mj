@@ -1,10 +1,11 @@
-import { BookOpen, Play, RadioTower } from "lucide-react";
+import { BookOpen, Play, RadioTower, Trophy } from "lucide-react";
 import { SoundSettingsButton } from "../components/SoundSettingsButton";
 import { useGameStore } from "../store/gameStore";
 
 export function HomePage() {
   const startGame = useGameStore((state) => state.startGame);
   const openRules = useGameStore((state) => state.openRules);
+  const openLeaderboard = useGameStore((state) => state.openLeaderboard);
   const openOnlineHome = useGameStore((state) => state.openOnlineHome);
 
   return (
@@ -33,6 +34,10 @@ export function HomePage() {
           <button className="ghost-button" type="button" onClick={openRules}>
             <BookOpen size={18} />
             规则说明
+          </button>
+          <button className="ghost-button" type="button" onClick={openLeaderboard}>
+            <Trophy size={18} />
+            排行榜
           </button>
         </div>
       </section>

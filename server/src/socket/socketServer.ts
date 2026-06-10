@@ -6,12 +6,13 @@ import { GameSessionManager } from "../managers/GameSessionManager";
 import { ConnectionManager } from "../managers/ConnectionManager";
 import { RoomManager, toRoomStateView } from "../managers/RoomManager";
 import { fail, ok } from "../utils/result";
+import { RatingManager } from "../rating/RatingManager";
 
 type OnlineServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type OnlineSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
 
 const roomManager = new RoomManager();
-const gameSessionManager = new GameSessionManager();
+let gameSessionManager = new GameSessionManager();
 const connectionManager = new ConnectionManager();
 const timerIntervals = new Map<string, ReturnType<typeof setInterval>>();
 const timerTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
@@ -111,10 +112,12 @@ function requireConnection(socket: OnlineSocket): AckResponse<{ roomId: string; 
   return ok({ roomId: record.roomId, playerId: record.playerId });
 }
 
-export function setupSocketServer(io: OnlineServer) {
+export function setupSocketServer(io: OnlineServer, options: { ratingManager?: RatingManager } = {}) {
+  gameSessionManager = new GameSessionManager(options.ratingManager);
+
   io.on("connection", (socket) => {
     socket.on(CLIENT_EVENTS.roomCreate, (payload, ack) => {
-      const created = roomManager.createRoom({ nickname: payload.nickname, socketId: socket.id });
+      const created = roomManager.createRoom({ nickname: payload.nickname, profileId: payload.profileId, socketId: socket.id });
       socket.join(created.room.id);
       connectionManager.register(socket.id, created.room.id, created.player.id, created.player.sessionToken);
       const roomView = toRoomStateView(created.room);
@@ -123,7 +126,7 @@ export function setupSocketServer(io: OnlineServer) {
     });
 
     socket.on(CLIENT_EVENTS.roomJoin, (payload, ack) => {
-      const result = roomManager.joinRoom({ roomId: payload.roomId, nickname: payload.nickname, socketId: socket.id, sessionToken: payload.sessionToken });
+      const result = roomManager.joinRoom({ roomId: payload.roomId, nickname: payload.nickname, profileId: payload.profileId, socketId: socket.id, sessionToken: payload.sessionToken });
       if (!result.ok || !result.data) {
         ack({ ok: false, error: result.error });
         return;

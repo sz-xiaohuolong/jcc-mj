@@ -167,6 +167,7 @@ export function OnlineGamePage() {
               ranking={publicGame.ranking}
               winnerId={publicGame.winnerId}
               currentPlayerId={privatePlayer.playerId}
+              ratingChanges={publicGame.ratingChanges}
               onPrimary={leaveRoom}
               primaryLabel="离开房间"
             />

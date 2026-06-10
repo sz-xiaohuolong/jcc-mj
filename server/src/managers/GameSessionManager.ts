@@ -12,6 +12,7 @@ import { sortTiles } from "../../../src/utils/tileSort";
 import type { AckResponse, ActionResult, ClientGameView, PrivatePlayerView, PublicGameView } from "../../../shared/types/network";
 import type { Room, RoomPlayer } from "./RoomManager";
 import { fail, ok } from "../utils/result";
+import { RatingManager, type RatedPlayerInput } from "../rating/RatingManager";
 
 const SHOP_SIZE = 5;
 
@@ -22,6 +23,9 @@ export interface GameSession {
   playerAugmentChoices: Record<string, AugmentDefinition[]>;
   endedTurnPlayerIds: string[];
   ranking: string[];
+  ratingChanges: PublicGameView["ratingChanges"];
+  ratedPlayers: RatedPlayerInput[];
+  ratingSettled: boolean;
   deadlineAt: number;
   rngSeed: number;
 }
@@ -121,6 +125,8 @@ function createAIPlayer(index: number): RoomPlayer {
 export class GameSessionManager {
   private sessions = new Map<string, GameSession>();
 
+  constructor(private readonly ratingManager = new RatingManager()) {}
+
   startGame(room: Room, seed = Date.now()): GameSession {
     const participants = [...room.players];
 
@@ -182,6 +188,14 @@ export class GameSessionManager {
       playerAugmentChoices,
       endedTurnPlayerIds: [],
       ranking: [],
+      ratingChanges: [],
+      ratedPlayers: participants.map((player) => ({
+        playerId: player.id,
+        profileId: player.profileId,
+        nickname: player.nickname,
+        isAI: player.isAI
+      })),
+      ratingSettled: false,
       deadlineAt: Date.now() + 60_000,
       rngSeed: seed
     };
@@ -243,6 +257,8 @@ export class GameSessionManager {
       lastSettlement: session.game.lastSettlement,
       winnerId: session.game.winnerId,
       ranking: session.ranking,
+      ratingChanges: session.ratingChanges,
+      leaderboard: this.ratingManager.getLeaderboard(20),
       deadlineAt: session.deadlineAt
     };
   }
@@ -638,5 +654,15 @@ export class GameSessionManager {
       afterPlayers: session.game.players,
       settlement: session.game.lastSettlement
     });
+    if (session.game.phase === "game_over" && !session.ratingSettled) {
+      session.ratingChanges = this.ratingManager.settleOnlineMatch({
+        roomId: session.roomId,
+        ranking: session.ranking,
+        roomPlayers: session.ratedPlayers,
+        gamePlayers: session.game.players,
+        settlement: session.game.lastSettlement
+      });
+      session.ratingSettled = true;
+    }
   }
 }

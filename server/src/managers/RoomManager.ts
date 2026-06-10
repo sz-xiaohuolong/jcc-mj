@@ -4,6 +4,7 @@ import { fail, ok } from "../utils/result";
 export interface RoomPlayer extends RoomPlayerView {
   sessionToken: string;
   socketId?: string;
+  profileId?: string;
 }
 
 export interface Room {
@@ -28,14 +29,14 @@ export function toRoomStateView(room: Room): RoomStateView {
     id: room.id,
     ownerId: room.ownerId,
     status: room.status,
-    players: room.players.map(({ sessionToken: _sessionToken, socketId: _socketId, ...player }) => player)
+    players: room.players.map(({ sessionToken: _sessionToken, socketId: _socketId, profileId: _profileId, ...player }) => player)
   };
 }
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
 
-  createRoom({ nickname, socketId }: { nickname: string; socketId?: string }): { room: Room; player: RoomPlayer } {
+  createRoom({ nickname, profileId, socketId }: { nickname: string; profileId?: string; socketId?: string }): { room: Room; player: RoomPlayer } {
     let id = roomCode();
 
     while (this.rooms.has(id)) {
@@ -50,6 +51,7 @@ export class RoomManager {
       ready: false,
       connected: true,
       sessionToken: randomId("session"),
+      profileId: profileId ?? randomId("profile"),
       socketId
     };
     const room: Room = {
@@ -64,7 +66,7 @@ export class RoomManager {
     return { room, player };
   }
 
-  joinRoom({ roomId, nickname, socketId, sessionToken }: { roomId: string; nickname: string; socketId?: string; sessionToken?: string }): AckResponse<JoinRoomResult & { player: RoomPlayer }> {
+  joinRoom({ roomId, nickname, profileId, socketId, sessionToken }: { roomId: string; nickname: string; profileId?: string; socketId?: string; sessionToken?: string }): AckResponse<JoinRoomResult & { player: RoomPlayer }> {
     const room = this.rooms.get(roomId.toUpperCase());
     const normalizedNickname = nickname.trim() || "玩家";
 
@@ -77,6 +79,7 @@ export class RoomManager {
     if (existingSessionPlayer) {
       existingSessionPlayer.connected = true;
       existingSessionPlayer.socketId = socketId;
+      existingSessionPlayer.profileId = existingSessionPlayer.profileId ?? profileId ?? randomId("profile");
       existingSessionPlayer.disconnectedAt = undefined;
       return ok({
         room: toRoomStateView(room),
@@ -94,6 +97,7 @@ export class RoomManager {
       if (reconnectingPlayer) {
         reconnectingPlayer.connected = true;
         reconnectingPlayer.socketId = socketId;
+        reconnectingPlayer.profileId = reconnectingPlayer.profileId ?? profileId ?? randomId("profile");
         reconnectingPlayer.disconnectedAt = undefined;
         return ok({
           room: toRoomStateView(room),
@@ -118,6 +122,7 @@ export class RoomManager {
       ready: false,
       connected: true,
       sessionToken: randomId("session"),
+      profileId: profileId ?? randomId("profile"),
       socketId
     };
 
