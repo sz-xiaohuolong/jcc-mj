@@ -1,5 +1,6 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Lock, RefreshCcw, StepForward, Unlock, Wand2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { tileDefinitions } from "../data/tiles";
 import { getLevelUpCost } from "../store/gameStore";
 import { useOnlineStore } from "../store/onlineStore";
@@ -17,6 +18,7 @@ function definitionFor(tile: TileInstance) {
 }
 
 export function OnlineGamePage() {
+  const [watchingAfterElimination, setWatchingAfterElimination] = useState(false);
   const gameView = useOnlineStore((state) => state.gameView);
   const timerRemainingMs = useOnlineStore((state) => state.timerRemainingMs);
   const lastError = useOnlineStore((state) => state.lastError);
@@ -29,6 +31,15 @@ export function OnlineGamePage() {
   const chooseAugment = useOnlineStore((state) => state.chooseAugment);
   const endTurn = useOnlineStore((state) => state.endTurn);
   const leaveRoom = useOnlineStore((state) => state.leaveRoom);
+  const me = gameView?.public.players.find((player) => player.id === gameView.privatePlayer.playerId);
+  const isGameOver = gameView?.public.phase === "game_over";
+  const isEliminated = me?.isAlive === false;
+
+  useEffect(() => {
+    if (!isEliminated || isGameOver) {
+      setWatchingAfterElimination(false);
+    }
+  }, [isEliminated, isGameOver]);
 
   if (!gameView) {
     return <main className="game-shell">等待服务端同步游戏状态...</main>;
@@ -36,12 +47,11 @@ export function OnlineGamePage() {
 
   const publicGame = gameView.public;
   const privatePlayer = gameView.privatePlayer;
-  const me = publicGame.players.find((player) => player.id === privatePlayer.playerId);
   const players = publicGame.players.map((player) => ({
     ...player,
     meta: `手牌 ${player.handTileCount} · ${player.endedTurn ? "已结束" : "操作中"}`
   }));
-  const showEndModal = publicGame.phase === "game_over" || me?.isAlive === false;
+  const showEndModal = isGameOver || (isEliminated && !watchingAfterElimination);
   const remainingSeconds = timerRemainingMs ? Math.ceil(timerRemainingMs / 1000) : publicGame.deadlineAt ? Math.max(0, Math.ceil((publicGame.deadlineAt - Date.now()) / 1000)) : 60;
 
   return (
@@ -170,6 +180,8 @@ export function OnlineGamePage() {
               ratingChanges={publicGame.ratingChanges}
               onPrimary={leaveRoom}
               primaryLabel="离开房间"
+              onSecondary={!isGameOver && isEliminated ? () => setWatchingAfterElimination(true) : undefined}
+              secondaryLabel={!isGameOver && isEliminated ? "继续观战" : undefined}
             />
           </motion.div>
         )}

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { ArrowRight, Crown, Skull, Trophy } from "lucide-react";
+import { ArrowRight, Crown, Eye, Skull, Trophy } from "lucide-react";
 import type { RatingChange } from "../../shared/rating/ratingTypes";
 import { RatingChangePanel } from "./RatingChangePanel";
 
@@ -19,7 +19,9 @@ export function GameOverModal({
   currentPlayerId,
   ratingChanges = [],
   onPrimary,
-  primaryLabel = "返回首页"
+  primaryLabel = "返回首页",
+  onSecondary,
+  secondaryLabel
 }: {
   players: GameOverPlayer[];
   ranking?: string[];
@@ -28,6 +30,8 @@ export function GameOverModal({
   ratingChanges?: RatingChange[];
   onPrimary: () => void;
   primaryLabel?: string;
+  onSecondary?: () => void;
+  secondaryLabel?: string;
 }) {
   const playerById = new Map(players.map((player) => [player.id, player]));
   const orderedRanking =
@@ -77,10 +81,18 @@ export function GameOverModal({
         })}
       </div>
 
-      <button className="primary-button mt-6 w-full" type="button" onClick={onPrimary}>
-        {primaryLabel}
-        <ArrowRight size={17} />
-      </button>
+      <div className={`game-over-actions ${onSecondary && secondaryLabel ? "" : "game-over-actions--single"}`}>
+        {onSecondary && secondaryLabel && (
+          <button className="control-button" type="button" onClick={onSecondary}>
+            <Eye size={17} />
+            {secondaryLabel}
+          </button>
+        )}
+        <button className="primary-button" type="button" onClick={onPrimary}>
+          {primaryLabel}
+          <ArrowRight size={17} />
+        </button>
+      </div>
     </motion.div>
   );
 }
